@@ -11,6 +11,7 @@ Design decisions:
 """
 
 from dataclasses import dataclass
+from typing import List, Optional
 
 from .constants import MW, CONV
 
@@ -193,25 +194,51 @@ def calculate_fiberline_bl(
 
 
 def mix_wbl_streams(
-    pine_bl: FiberlineBLOutput,
-    semichem_bl: FiberlineBLOutput,
+    *args,
+    bl_outputs: Optional[List[FiberlineBLOutput]] = None,
     cto_na_lb_hr: float = 0.0,
     cto_s_lb_hr: float = 0.0,
     cto_water_lb_hr: float = 0.0,
+    # Backward compat — remove after orchestrator is updated to use bl_outputs
+    pine_bl: Optional[FiberlineBLOutput] = None,
+    semichem_bl: Optional[FiberlineBLOutput] = None,
 ) -> MixedWBLOutput:
     """
-    Combine Pine + Semichem WBL streams and add CTO brine.
+    Combine WBL streams from one or more fiberlines and add CTO brine.
 
     CTO is modeled as Na2SO4 brine — its Na and S add to the mixed stream.
     CTO solids = Na2SO4 compound mass from Na + S.
 
+    Accepts either:
+      - bl_outputs: list of FiberlineBLOutput (V2 API, supports N fiberlines)
+      - pine_bl/semichem_bl: named params (V1 backward compat)
+      - positional args: mix_wbl_streams(pine, semichem, ...) (V1 backward compat)
+
     Args:
-        pine_bl: Pine fiberline BL output
-        semichem_bl: Semichem fiberline BL output
+        bl_outputs: List of fiberline BL outputs to mix (V2 API)
         cto_na_lb_hr: CTO Na element contribution (lb/hr)
         cto_s_lb_hr: CTO S element contribution (lb/hr)
         cto_water_lb_hr: CTO brine water (lb/hr)
+        pine_bl: Pine fiberline BL output (V1 backward compat)
+        semichem_bl: Semichem fiberline BL output (V1 backward compat)
     """
+    # ── Backward compat: detect positional (pine, semichem) call pattern ──
+    # Old callers: mix_wbl_streams(pine, semichem, ...) pass FiberlineBLOutput
+    # as positional args. *args captures them so kwargs don't conflict.
+    if args:
+        if len(args) >= 1 and isinstance(args[0], FiberlineBLOutput):
+            pine_bl = args[0]
+        if len(args) >= 2 and isinstance(args[1], FiberlineBLOutput):
+            semichem_bl = args[1]
+
+    # ── Build list from old params if bl_outputs not provided ──
+    if bl_outputs is None:
+        bl_outputs = []
+        if pine_bl is not None:
+            bl_outputs.append(pine_bl)
+        if semichem_bl is not None:
+            bl_outputs.append(semichem_bl)
+
     # CTO enters as Na2SO4: compute compound mass from elements
     # Na2SO4 has 2 Na + 1 S + 4 O
     # cto_na_lb_hr and cto_s_lb_hr are element masses
@@ -222,10 +249,10 @@ def mix_wbl_streams(
     else:
         cto_na2so4_lb_hr = 0.0
 
-    total_na = pine_bl.na_element_lb_hr + semichem_bl.na_element_lb_hr + cto_na_lb_hr
-    total_s = pine_bl.s_element_lb_hr + semichem_bl.s_element_lb_hr + cto_s_lb_hr
-    total_solids = pine_bl.total_solids_lb_hr + semichem_bl.total_solids_lb_hr + cto_na2so4_lb_hr
-    total_water = pine_bl.water_lb_hr + semichem_bl.water_lb_hr + cto_water_lb_hr
+    total_na = sum(bl.na_element_lb_hr for bl in bl_outputs) + cto_na_lb_hr
+    total_s = sum(bl.s_element_lb_hr for bl in bl_outputs) + cto_s_lb_hr
+    total_solids = sum(bl.total_solids_lb_hr for bl in bl_outputs) + cto_na2so4_lb_hr
+    total_water = sum(bl.water_lb_hr for bl in bl_outputs) + cto_water_lb_hr
 
     total_flow = total_solids + total_water
 
