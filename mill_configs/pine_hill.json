@@ -1,0 +1,279 @@
+{
+  "mill_name": "Pine Hill",
+  "makeup_chemical": "nash",
+  "fiberlines": [
+    {
+      "id": "pine",
+      "name": "Pine (Continuous)",
+      "type": "continuous",
+      "cooking_type": "chemical",
+      "uses_gl_charge": false,
+      "defaults": {
+        "production_bdt_day": 1250.69,
+        "yield_pct": 0.5694,
+        "ea_pct": 0.122,
+        "aa_pct": 0.153,
+        "tta_pct": 0.18,
+        "wood_moisture": 0.523
+      }
+    },
+    {
+      "id": "semichem",
+      "name": "Semichem (Batch)",
+      "type": "batch",
+      "cooking_type": "semichem",
+      "uses_gl_charge": true,
+      "defaults": {
+        "production_bdt_day": 636.854,
+        "yield_pct": 0.7019,
+        "ea_pct": 0.0365,
+        "aa_pct": 0.0474,
+        "tta_pct": 0.0566,
+        "gl_ea_pct": 0.017,
+        "wood_moisture": 0.461
+      }
+    }
+  ],
+  "tanks": [
+    {
+      "id": "wlc_1",
+      "name": "#1 White Liquor Clarifier",
+      "constant": 239360,
+      "max_level": 16,
+      "gal_per_ft": 14960.0,
+      "group": "white_liquor"
+    },
+    {
+      "id": "wlc_2",
+      "name": "#2 White Liquor Clarifier",
+      "constant": 239360,
+      "max_level": 16,
+      "gal_per_ft": 14960.0,
+      "group": "white_liquor"
+    },
+    {
+      "id": "gl_1",
+      "name": "#1 Green Liquor Tank",
+      "constant": 284320,
+      "max_level": 16,
+      "gal_per_ft": 17770.0,
+      "group": "green_liquor"
+    },
+    {
+      "id": "gl_2",
+      "name": "#2 Green Liquor Tank",
+      "constant": 108672,
+      "max_level": 16,
+      "gal_per_ft": 6792.0,
+      "group": "green_liquor"
+    },
+    {
+      "id": "dump_tank",
+      "name": "Dump Tank",
+      "constant": 357200,
+      "max_level": 38,
+      "gal_per_ft": 9400.0,
+      "group": "green_liquor"
+    },
+    {
+      "id": "wbl_1",
+      "name": "#1 Weak Black Liquor Tank",
+      "constant": 853056,
+      "max_level": 48,
+      "gal_per_ft": 17772.0,
+      "group": "weak_black_liquor"
+    },
+    {
+      "id": "wbl_2",
+      "name": "#2 Weak Black Liquor Tank",
+      "constant": 853056,
+      "max_level": 48,
+      "gal_per_ft": 17772.0,
+      "group": "weak_black_liquor"
+    },
+    {
+      "id": "cssc_weak",
+      "name": "CSSC Weak Tank",
+      "constant": 705022,
+      "max_level": 48,
+      "gal_per_ft": 14687.958333333334,
+      "group": "weak_black_liquor"
+    },
+    {
+      "id": "tank_50pct",
+      "name": "50% Solids Tank",
+      "constant": 282000,
+      "max_level": 30,
+      "gal_per_ft": 9400.0,
+      "group": "strong_black_liquor"
+    },
+    {
+      "id": "tank_55pct_1",
+      "name": "#1 55% Solids Tank",
+      "constant": 211507,
+      "max_level": 40,
+      "gal_per_ft": 5287.675,
+      "group": "strong_black_liquor"
+    },
+    {
+      "id": "tank_55pct_2",
+      "name": "#2 55% Solids Tank",
+      "constant": 211507,
+      "max_level": 40,
+      "gal_per_ft": 5287.675,
+      "group": "strong_black_liquor"
+    },
+    {
+      "id": "tank_65pct",
+      "name": "65% Solids Tank",
+      "constant": 285295,
+      "max_level": 42,
+      "gal_per_ft": 6792.738095238095,
+      "group": "strong_black_liquor"
+    }
+  ],
+  "defaults": {
+    "target_sulfidity_pct": 29.4,
+    "reduction_efficiency_pct": 95.0,
+    "causticity_pct": 81.0,
+
+    "nash_concentration": 0.40,
+    "naoh_concentration": 0.50,
+    "nash_density": 1.29,
+    "naoh_density": 1.52,
+
+    "bl_na_pct": 19.39,
+    "bl_s_pct": 4.01,
+    "bl_k_pct": 1.58,
+    "bl_na_pct_inv_weak": 18.87,
+    "bl_na_pct_inv_strong": 19.50,
+    "bl_s_pct_inv": 4.56,
+
+    "bl_flow_gpm": 340.53,
+    "bl_tds_pct": 69.1,
+    "bl_temp_f": 253.5,
+
+    "ash_recycled_pct": 0.07,
+    "saltcake_flow_lb_hr": 2227.0,
+
+    "wl_tta": 117.449,
+    "wl_ea": 85.99,
+    "wl_aa": 103.26,
+
+    "gl_tta": 117.5,
+    "gl_ea": 27.72,
+    "gl_aa": 44.77,
+
+    "ww_flow_gpm": 625.0,
+    "ww_tta_lb_ft3": 1.07978,
+    "ww_sulfidity": 0.2550,
+    "shower_flow_gpm": 60.0,
+    "smelt_density_lb_ft3": 110.0,
+    "gl_target_tta_lb_ft3": 7.4,
+    "gl_causticity": 0.1016,
+
+    "smelt_temp_f": 1338.0,
+    "ww_temp_f": 180.0,
+    "shower_temp_f": 140.0,
+    "dt_operating_temp_f": 212.0,
+    "smelt_cp_btu_lb_f": 0.223,
+    "latent_heat_212_btu_lb": 970.0,
+
+    "ww_tta": 17.3,
+    "ww_na2s": 4.41,
+    "gl_tta_target": 117.27,
+
+    "cto_h2so4_per_ton": 360.0,
+    "cto_tpd": 26.68,
+
+    "cooking_wl_sulfidity": 0.283,
+
+    "liquor_wood_ratio": 3.3,
+
+    "lime_charge_ratio": 0.85,
+    "cao_in_lime_pct": 87.53,
+    "caco3_in_lime_pct": 1.96,
+    "inerts_in_lime_pct": 9.46,
+    "grits_loss_pct": 1.0,
+    "lime_temp_f": 1100.0,
+    "slaker_temp_f": 210.5,
+    "gl_temp_f": 189.0,
+    "slaker_volume_m3": 27.35,
+    "n_causticizers": 3,
+    "causticizer_volume_m3": 53.65,
+
+    "wlc_underflow_solids_pct": 0.4097,
+    "wlc_mud_density": 1.33,
+    "intrusion_water_gpm": 28.0,
+    "dilution_water_gpm": 23.856,
+
+    "dregs_lb_bdt": 8.158,
+    "glc_underflow_solids_pct": 0.077,
+    "grits_lb_bdt": 8.53,
+    "grits_solids_pct": 0.40,
+
+    "s_loss_digester_pct": 0.0,
+    "target_sbl_tds_pct": 69.1,
+
+    "loss_pulp_washable_soda_s": 3.0,
+    "loss_pulp_washable_soda_na": 18.5,
+    "loss_pulp_bound_soda_s": 0.0,
+    "loss_pulp_bound_soda_na": 7.4,
+    "loss_pulp_mill_spills_s": 0.0,
+    "loss_pulp_mill_spills_na": 0.3,
+    "loss_evap_spill_s": 2.4,
+    "loss_evap_spill_na": 5.2,
+    "loss_rb_ash_s": 1.3,
+    "loss_rb_ash_na": 2.8,
+    "loss_rb_stack_s": 0.3,
+    "loss_rb_stack_na": 0.8,
+    "loss_dregs_filter_s": 0.4,
+    "loss_dregs_filter_na": 2.4,
+    "loss_grits_s": 0.2,
+    "loss_grits_na": 1.5,
+    "loss_weak_wash_overflow_s": 0.1,
+    "loss_weak_wash_overflow_na": 0.7,
+    "loss_ncg_s": 8.5,
+    "loss_ncg_na": 1.0,
+    "loss_recaust_spill_s": 0.4,
+    "loss_recaust_spill_na": 2.2,
+    "loss_truck_out_gl_s": 0.0,
+    "loss_truck_out_gl_na": 0.0,
+    "loss_unaccounted_s": 0.0,
+    "loss_unaccounted_na": 0.0,
+
+    "tank_levels": {
+      "wlc_1": 10.2,
+      "wlc_2": 13.0,
+      "gl_1": 11.1,
+      "gl_2": 10.8,
+      "dump_tank": 30.3,
+      "wbl_1": 34.4,
+      "wbl_2": 32.8,
+      "cssc_weak": 36.4,
+      "tank_50pct": 18.4,
+      "tank_55pct_1": 18.0,
+      "tank_55pct_2": 1.0,
+      "tank_65pct": 39.4
+    },
+
+    "bl_tank_tds": {
+      "wbl_1": 19.23,
+      "wbl_2": 19.23,
+      "cssc_weak": 19.23,
+      "tank_50pct": 50.0,
+      "tank_55pct_1": 55.0,
+      "tank_55pct_2": 50.0,
+      "tank_65pct": 69.1
+    },
+    "bl_tank_temp": {
+      "wbl_1": 205.0,
+      "wbl_2": 205.0,
+      "cssc_weak": 205.0,
+      "tank_50pct": 205.0,
+      "tank_55pct_1": 205.0,
+      "tank_55pct_2": 205.0,
+      "tank_65pct": 205.0
+    }
+  }
+}
