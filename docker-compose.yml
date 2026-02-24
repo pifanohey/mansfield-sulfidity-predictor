@@ -1,0 +1,48 @@
+# Docker Compose for Sulfidity Predictor
+# Run with: docker-compose up
+
+version: "3.8"
+
+services:
+  # Backend API (FastAPI + Python)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sulfidity-backend
+    ports:
+      - "8001:8001"
+    volumes:
+      # Persist database between restarts
+      - sulfidity-data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///./data/sulfidity.db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Frontend (Next.js + React)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Override API URL at build time for Docker
+        - API_URL=http://backend:8001
+    container_name: sulfidity-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      # Point to backend service (Docker internal networking)
+      - API_URL=http://backend:8001
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+# Named volume for database persistence
+volumes:
+  sulfidity-data:
