@@ -8,10 +8,14 @@ Implements:
 - GL clarifier underflows (B62-B80)
 - WLC (White Liquor Clarifier) section (T82-U112)
 - Circular reference feedback: D41-D44 from U103-U107
+
+V2 additions:
+- FiberlineConfig-driven loop (calculate_chemical_charge with fiberlines param)
+- Dict-based ChemicalChargeResults with backward-compat pine/semichem properties
 """
 
-from dataclasses import dataclass
-from typing import Dict, Optional
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional
 
 from .constants import MW, CONV, DEFAULTS, GPM_GL_TO_TON_HR
 
@@ -46,12 +50,11 @@ class WLCResult:
 @dataclass
 class ChemicalChargeResults:
     """Complete results from chemical charge calculations."""
-    # Fiberlines
-    semichem: FiberlineResult
-    pine: FiberlineResult
+    # Fiberlines — V2: keyed by fiberline id
+    fiberline_results: Dict[str, FiberlineResult]
     total_production_bdt_day: float
-    total_wl_demand_gpm: float        # U110 = L11 + L37
-    semichem_gl_gpm: float            # G5 — feeds into dissolving tank I58
+    total_wl_demand_gpm: float        # U110 = sum of all fiberline WL demands
+    gl_charge_gpm: Dict[str, float]   # GL GPM per fiberline (0 if no GL)
 
     # GL clarifier
     dregs_underflow_gpm: float        # B69
@@ -67,6 +70,23 @@ class ChemicalChargeResults:
 
     # Initial sulfidity (before makeup, before WLC)
     initial_sulfidity_pct: float
+
+    # ── Backward-compat properties — remove after orchestrator refactored ──
+
+    @property
+    def pine(self) -> FiberlineResult:
+        """Return pine fiberline result, or first fiberline if no 'pine' key."""
+        return self.fiberline_results.get("pine", list(self.fiberline_results.values())[0])
+
+    @property
+    def semichem(self) -> Optional[FiberlineResult]:
+        """Return semichem fiberline result, or None if not present."""
+        return self.fiberline_results.get("semichem")
+
+    @property
+    def semichem_gl_gpm(self) -> float:
+        """Return GL charge for semichem fiberline, or 0 if not present."""
+        return self.gl_charge_gpm.get("semichem", 0.0)
 
 
 def calculate_fiberline(
@@ -105,6 +125,39 @@ def calculate_fiberline(
         wl_demand_gpm=wl_demand_gpm,
         gl_to_digester_gpm=gl_to_digester_gpm,
     )
+
+
+def _calculate_gl_charge(
+    production_bdt_day: float,
+    yield_pct: float,
+    gl_ea_pct: float,
+    gl_aa_g_L: float,
+    gl_na2s_g_L: float,
+) -> float:
+    """
+    Calculate GL charge to a fiberline digester (G5-G17 block).
+
+    G12 = wood OD (short ton/day) = production / yield
+    G13 = GL EA% charge on OD wood
+    G11 = GL EA needed (short ton Na2O/day) = G12 x G13
+    G9  = GL EA (g Na2O/L) = GL AA - 0.5 x GL Na2S
+    G7  = (G11 x 907.185) / G9 (m3/day)
+    G5  = ((G7 x 1000) / 24 / 60) / 3.785 (gpm)
+
+    Returns GL flow in gpm.
+    """
+    if yield_pct <= 0 or gl_ea_pct <= 0:
+        return 0.0
+
+    wood_od = production_bdt_day / yield_pct
+    gl_ea_needed_ton_day = wood_od * gl_ea_pct  # G11
+    gl_ea_g_L = gl_aa_g_L - 0.5 * gl_na2s_g_L  # G9
+
+    if gl_ea_g_L <= 0:
+        return 0.0
+
+    g7 = (gl_ea_needed_ton_day * CONV['KG_PER_SHORT_TON']) / gl_ea_g_L  # m3/day
+    return (g7 * 1000) / (24 * 60 * 3.785)  # G5 in gpm
 
 
 def calculate_wlc(
@@ -243,12 +296,15 @@ def calculate_wlc(
 
 
 def calculate_chemical_charge(
-    gl_flow_to_slaker_gpm: float,
-    yield_factor: float,
-    wl_tta_g_L: float,
-    wl_na2s_g_L: float,
-    batch_production_bdt_day: float,
-    cont_production_bdt_day: float,
+    # V2 path: optional list of FiberlineConfig objects
+    fiberlines: Optional[List] = None,
+    # V1 path: all original positional/keyword params
+    gl_flow_to_slaker_gpm: float = 0.0,
+    yield_factor: float = 1.0,
+    wl_tta_g_L: float = 117.0,
+    wl_na2s_g_L: float = 31.74,
+    batch_production_bdt_day: float = 636.854,
+    cont_production_bdt_day: float = 1250.69,
     # WL composition for demand calc
     wl_ea_g_L: float = 85.0,
     wl_sulfidity: float = 0.283,
@@ -269,68 +325,109 @@ def calculate_chemical_charge(
     semichem_gl_ea_pct: float = 0.017,
 ) -> ChemicalChargeResults:
     """
-    Calculate chemical charge for both fiberlines.
+    Calculate chemical charge for fiberlines.
+
+    V2 path (fiberlines is not None):
+      Loops over FiberlineConfig objects, computing WL demand and GL charge
+      for each. Each FiberlineConfig provides id, production, yield, ea_pct,
+      uses_gl_charge, and gl_ea_pct via its defaults dict.
+
+    V1 path (fiberlines is None — backward compat):
+      Uses the old flat pine/semichem parameters. Returns the same
+      ChemicalChargeResults with fiberline_results dict constructed from
+      the named pine and semichem variables.
 
     Returns WL flow, mass flows, fiberline demands, and GL clarifier underflows.
-    The semichem fiberline uses both WL and GL for cooking:
-    - WL provides EA at semichem_ea_pct (D12 = 0.0365)
-    - GL provides EA at semichem_gl_ea_pct (G13 = 0.017)
-    G7 (GL volume) is CALCULATED from GL EA concentration and wood demand.
-    G5 feeds back into the dissolving tank I58 as part of the circular reference.
     """
-    # ── Semichem GL charge (G5-G17) ──
-    # G12 = wood OD (short ton/day) = batch_production / semichem_yield
-    # G13 = GL EA% charge = 0.017
-    # G11 = GL EA needed (short ton Na2O/day) = G12 × G13
-    # G9 = GL EA (g Na2O/L) = GL AA - 0.5 × GL Na2S
-    # G7 = (G11 × 907.185) / G9 (m³/day)
-    # G5 = ((G7 × 1000) / 24 / 60) / 3.785 (gpm)
-    wood_od_semichem = batch_production_bdt_day / semichem_yield if semichem_yield > 0 else 0.0
-    gl_ea_needed_ton_day = wood_od_semichem * semichem_gl_ea_pct  # G11
-    gl_ea_g_L = gl_aa_g_L - 0.5 * gl_na2s_g_L  # G9 = D64
-
-    if gl_ea_g_L > 0 and semichem_gl_ea_pct > 0:
-        g7 = (gl_ea_needed_ton_day * CONV['KG_PER_SHORT_TON']) / gl_ea_g_L  # m³/day
-        semichem_gl_gpm = (g7 * 1000) / (24 * 60 * 3.785)  # G5
-    else:
-        semichem_gl_gpm = 0.0
-
-    # WL flow from slaker
+    # ── Common: WL flow and mass from slaker ──
     wl_flow = gl_flow_to_slaker_gpm * yield_factor
-
-    # WL mass flows
     conv = CONV['GPM_GL_TO_LB_HR'] / 2000  # gpm * g/L -> ton/hr
     wl_tta_mass = wl_flow * wl_tta_g_L * conv
     wl_na2s_mass = wl_flow * wl_na2s_g_L * conv
-
     initial_sulfidity = (wl_na2s_mass / wl_tta_mass * 100) if wl_tta_mass > 0 else 0.0
-    total_production = batch_production_bdt_day + cont_production_bdt_day
 
-    # Semichem fiberline — uses both WL and GL
-    semichem = calculate_fiberline(
-        production_bdt_day=batch_production_bdt_day,
-        yield_pct=semichem_yield,
-        ea_pct=semichem_ea_pct,
-        wl_ea_g_L=wl_ea_g_L,
-        gl_to_digester_gpm=semichem_gl_gpm,
-    )
+    if fiberlines is not None:
+        # ═══════════════════════════════════════════════════════════════
+        # V2 PATH: loop over FiberlineConfig objects
+        # ═══════════════════════════════════════════════════════════════
+        fiberline_results: Dict[str, FiberlineResult] = {}
+        gl_charge_gpm_dict: Dict[str, float] = {}
 
-    # Pine fiberline — uses WL only
-    pine = calculate_fiberline(
-        production_bdt_day=cont_production_bdt_day,
-        yield_pct=pine_yield,
-        ea_pct=pine_ea_pct,
-        wl_ea_g_L=wl_ea_g_L,
-    )
+        for fl in fiberlines:
+            fl_gl_gpm = 0.0
+            if fl.uses_gl_charge:
+                fl_gl_gpm = _calculate_gl_charge(
+                    production_bdt_day=fl.production_bdt_day,
+                    yield_pct=fl.yield_pct,
+                    gl_ea_pct=fl.gl_ea_pct,
+                    gl_aa_g_L=gl_aa_g_L,
+                    gl_na2s_g_L=gl_na2s_g_L,
+                )
 
-    total_wl_demand = semichem.wl_demand_gpm + pine.wl_demand_gpm
+            result = calculate_fiberline(
+                production_bdt_day=fl.production_bdt_day,
+                yield_pct=fl.yield_pct,
+                ea_pct=fl.ea_pct,
+                wl_ea_g_L=wl_ea_g_L,
+                gl_to_digester_gpm=fl_gl_gpm,
+            )
+            fiberline_results[fl.id] = result
+            gl_charge_gpm_dict[fl.id] = fl_gl_gpm
+
+        total_prod = sum(r.production_bdt_day for r in fiberline_results.values())
+        total_wl = sum(r.wl_demand_gpm for r in fiberline_results.values())
+
+    else:
+        # ═══════════════════════════════════════════════════════════════
+        # V1 PATH: backward-compat — existing pine/semichem code
+        # ═══════════════════════════════════════════════════════════════
+
+        # Semichem GL charge (G5-G17)
+        wood_od_semichem = batch_production_bdt_day / semichem_yield if semichem_yield > 0 else 0.0
+        gl_ea_needed_ton_day = wood_od_semichem * semichem_gl_ea_pct  # G11
+        gl_ea_g_L = gl_aa_g_L - 0.5 * gl_na2s_g_L  # G9 = D64
+
+        if gl_ea_g_L > 0 and semichem_gl_ea_pct > 0:
+            g7 = (gl_ea_needed_ton_day * CONV['KG_PER_SHORT_TON']) / gl_ea_g_L  # m3/day
+            v1_semichem_gl_gpm = (g7 * 1000) / (24 * 60 * 3.785)  # G5
+        else:
+            v1_semichem_gl_gpm = 0.0
+
+        total_prod = batch_production_bdt_day + cont_production_bdt_day
+
+        # Semichem fiberline — uses both WL and GL
+        semichem_result = calculate_fiberline(
+            production_bdt_day=batch_production_bdt_day,
+            yield_pct=semichem_yield,
+            ea_pct=semichem_ea_pct,
+            wl_ea_g_L=wl_ea_g_L,
+            gl_to_digester_gpm=v1_semichem_gl_gpm,
+        )
+
+        # Pine fiberline — uses WL only
+        pine_result = calculate_fiberline(
+            production_bdt_day=cont_production_bdt_day,
+            yield_pct=pine_yield,
+            ea_pct=pine_ea_pct,
+            wl_ea_g_L=wl_ea_g_L,
+        )
+
+        total_wl = semichem_result.wl_demand_gpm + pine_result.wl_demand_gpm
+
+        fiberline_results = {
+            "semichem": semichem_result,
+            "pine": pine_result,
+        }
+        gl_charge_gpm_dict = {
+            "semichem": v1_semichem_gl_gpm,
+            "pine": 0.0,
+        }
 
     return ChemicalChargeResults(
-        semichem=semichem,
-        pine=pine,
-        total_production_bdt_day=total_production,
-        total_wl_demand_gpm=total_wl_demand,
-        semichem_gl_gpm=semichem_gl_gpm,
+        fiberline_results=fiberline_results,
+        total_production_bdt_day=total_prod,
+        total_wl_demand_gpm=total_wl,
+        gl_charge_gpm=gl_charge_gpm_dict,
         dregs_underflow_gpm=dregs_underflow_gpm,
         wl_flow_from_slaker_gpm=wl_flow,
         wl_tta_mass_ton_hr=wl_tta_mass,
