@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 230 25% 6%;
+    --foreground: 0 0% 100%;
+    --card: 232 25% 10%;
+    --card-foreground: 0 0% 100%;
+    --primary: 239 84% 67%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 232 20% 16%;
+    --secondary-foreground: 0 0% 90%;
+    --muted: 232 15% 18%;
+    --muted-foreground: 230 10% 55%;
+    --accent: 168 84% 64%;
+    --accent-foreground: 230 25% 6%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 232 15% 18%;
+    --input: 232 20% 12%;
+    --ring: 239 84% 67%;
+    --radius: 0.75rem;
+
+    --warning: 38 92% 50%;
+    --success: 160 84% 39%;
+    --info: 217 91% 60%;
+    --cyan: 168 84% 64%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+/* Monospace for data values */
+.font-mono {
+  font-feature-settings: "tnum" 1, "zero" 1;
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(232 25% 8%);
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(232 15% 25%);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(232 15% 35%);
+}
+
+/* Slider styling */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  width: 100%;
+}
+input[type="range"]::-webkit-slider-track {
+  height: 3px;
+  background: hsl(232 15% 22%);
+  border-radius: 2px;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: hsl(168 84% 64%);
+  margin-top: -5.5px;
+  cursor: pointer;
+  box-shadow: 0 0 8px hsla(168, 84%, 64%, 0.3);
+}
