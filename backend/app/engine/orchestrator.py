@@ -8,7 +8,7 @@ Reference: Excel iterative calculation (100 iterations, max change 0.001)
 Circular reference path: 2_RB!I58 -> I63 -> I66 -> I67 -> 3_Chem!D66 -> 3_Chem!G5 -> 2_RB!I58
 """
 
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 from .constants import MW, CONV, DEFAULTS, GPM_GL_TO_TON_HR
 from .density import calculate_bl_density, calculate_gl_density
@@ -28,6 +28,7 @@ from .dissolving_tank import calculate_dissolving_tank, calculate_ww_flow_for_tt
 from .dregs_filter import calculate_dregs_filter
 from .slaker_model import calculate_slaker_model
 from .mill_config import TANKS, TANK_GROUPS
+from .mill_profile import FiberlineConfig
 from .fiberline import calculate_fiberline_bl, mix_wbl_streams
 from .evaporator import calculate_evaporator
 
@@ -39,9 +40,8 @@ def _run_inner_loop(
     grits_entrained_gpm,  # Entrained WL liquor lost with grits at slaker
     gl_temp, causticity, lime_charge_ratio, cao_in_lime, caco3_in_lime,
     inerts_in_lime, grits_loss, lime_temp, slaker_temp,
-    batch_prod, cont_prod, total_prod, lab_wl_ea, cooking_sulf,
-    semichem_yield, pine_yield, semichem_ea, pine_ea,
-    semichem_gl_ea, target_sulf_pct,
+    fiberline_configs, total_prod, lab_wl_ea, cooking_sulf,
+    target_sulf_pct,
     total_na_losses_as_na2o_lb_hr,
     washable_soda_na_lb_hr,   # Washable soda Na losses (lb Na2O/hr) — flow-dependent portion
     s_deficit_element_lb_hr,  # S deficit in element basis (lb S/hr)
@@ -74,7 +74,7 @@ def _run_inner_loop(
     MAX_ITER = 100
     TOLERANCE = 0.001
 
-    semichem_gl = 0.0
+    total_gl_to_digesters = 0.0
     gl_flow_prev = 660.0
     iter_wl_tta_g_L = DEFAULTS.get('wl_tta', 120.0)
 
@@ -133,7 +133,7 @@ def _run_inner_loop(
             gl_target_tta_lb_ft3=gl_target_tta_lb_ft3,
             gl_causticity=gl_causticity,
             underflow_dregs_gpm=dregs_gpm,
-            semichem_gl_gpm=semichem_gl,
+            semichem_gl_gpm=total_gl_to_digesters,
             dregs_filtrate_gpm=dregs_filtrate_gpm,
             filtrate_tta_g_L=filtrate_tta_g_L,
             smelt_temp_f=smelt_temp_f,
@@ -241,23 +241,17 @@ def _run_inner_loop(
             wl_ea_for_demand = wlc_stage1.final_ea_g_L if wlc_stage1.final_ea_g_L > 0 else lab_wl_ea
 
         chem_result = calculate_chemical_charge(
+            fiberlines=fiberline_configs,
             gl_flow_to_slaker_gpm=gl_flow,
             yield_factor=slaker_result.yield_factor,
             wl_tta_g_L=slaker_result.wl_tta_g_L,
             wl_na2s_g_L=slaker_result.wl_na2s_g_L,
-            batch_production_bdt_day=batch_prod,
-            cont_production_bdt_day=cont_prod,
-            wl_ea_g_L=wl_ea_for_demand,  # KEY CHANGE: use calculated EA from WLC!
+            wl_ea_g_L=wl_ea_for_demand,
             wl_sulfidity=cooking_sulf,
             gl_tta_g_L=dt_result.gl_tta_g_L,
             gl_na2s_g_L=dt_result.gl_na2s_g_L,
             gl_aa_g_L=dt_result.gl_aa_g_L,
-            semichem_yield=semichem_yield,
-            pine_yield=pine_yield,
-            semichem_ea_pct=semichem_ea,
-            pine_ea_pct=pine_ea,
             dregs_underflow_gpm=dregs_gpm,
-            semichem_gl_ea_pct=semichem_gl_ea,
         )
 
         # ═══════════════════════════════════════════════════════════════════════
@@ -299,17 +293,22 @@ def _run_inner_loop(
         # - Option 2: Add NaOH makeup (chemical cost)
         # ══════════════════════════════════════════════════════════════════════════
 
-        # Calculate wood consumed (for tracking)
-        wood_pine_lb_hr = (cont_prod * 2000 / pine_yield) / 24 if pine_yield > 0 else 0.0
-        wood_semi_lb_hr = (batch_prod * 2000 / semichem_yield) / 24 if semichem_yield > 0 else 0.0
+        # Calculate EA demand per fiberline (loop over configs)
+        total_ea_required_lb_hr = 0.0
+        ea_from_gl_total = 0.0
+        ea_per_fiberline = {}
+        for fl in fiberline_configs:
+            wood_lb_hr = (fl.production_bdt_day * 2000 / fl.yield_pct) / 24 if fl.yield_pct > 0 else 0.0
+            ea_fl = fl.ea_pct * wood_lb_hr
+            total_ea_required_lb_hr += ea_fl
+            ea_per_fiberline[fl.id] = ea_fl
+            if fl.uses_gl_charge:
+                ea_from_gl_total += fl.gl_ea_pct * wood_lb_hr
 
-        # EA required from WHITE LIQUOR (lb Na2O/hr) - for reporting
-        ea_required_pine_lb_hr = pine_ea * wood_pine_lb_hr
-        ea_required_semi_wl_lb_hr = semichem_ea * wood_semi_lb_hr
-        total_ea_required_lb_hr = ea_required_pine_lb_hr + ea_required_semi_wl_lb_hr
-
-        # EA from GL to semichem (for tracking)
-        ea_from_gl_to_semi_lb_hr = semichem_gl_ea * wood_semi_lb_hr
+        # Backward compat keys (kept for result assembly & tests)
+        ea_required_pine_lb_hr = ea_per_fiberline.get('pine', 0.0)
+        ea_required_semi_wl_lb_hr = ea_per_fiberline.get('semichem', 0.0)
+        ea_from_gl_to_semi_lb_hr = ea_from_gl_total  # Backward compat name
 
         # ══════════════════════════════════════════════════════════════════════════
         # EA DEFICIT CALCULATION: Baseline CE vs Actual CE
@@ -475,7 +474,7 @@ def _run_inner_loop(
         # Update iteration variables
         prev_wlc_stage2 = wlc_result  # Store for next iteration's EA demand calc
         iter_wl_tta_g_L = wlc_result.final_tta_g_L
-        semichem_gl = chem_result.semichem_gl_gpm
+        total_gl_to_digesters = sum(chem_result.gl_charge_gpm.values())
 
         final_tta_ton_hr = wlc_result.final_tta_mass_ton_hr
         final_na2s_ton_hr = wlc_result.final_na2s_mass_ton_hr
@@ -590,16 +589,38 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
     smelt_cp = inputs.get('smelt_cp_btu_lb_f', DEFAULTS['smelt_cp_btu_lb_f'])
     latent_heat = inputs.get('latent_heat_212_btu_lb', DEFAULTS['latent_heat_212_btu_lb'])
 
-    batch_prod = inputs.get('batch_production_bdt_day', DEFAULTS['batch_production_bdt_day'])
-    cont_prod = inputs.get('cont_production_bdt_day', DEFAULTS['cont_production_bdt_day'])
-    total_prod = batch_prod + cont_prod
+    # ── Build fiberline configs (V2 or V1 backward compat) ──
+    if 'fiberlines' in inputs:
+        fiberline_configs: List[FiberlineConfig] = inputs['fiberlines']
+    else:
+        fiberline_configs = [
+            FiberlineConfig(
+                id="pine", name="Pine", type="continuous",
+                cooking_type="chemical", uses_gl_charge=False,
+                defaults={
+                    "production_bdt_day": inputs.get('cont_production_bdt_day', DEFAULTS['cont_production_bdt_day']),
+                    "yield_pct": inputs.get('pine_yield_pct', DEFAULTS['pine_yield_pct']),
+                    "ea_pct": inputs.get('pine_ea_pct', DEFAULTS['pine_ea_pct']),
+                    "wood_moisture": inputs.get('wood_moisture_pine', DEFAULTS['wood_moisture_pine']),
+                },
+            ),
+            FiberlineConfig(
+                id="semichem", name="Semichem", type="batch",
+                cooking_type="semichem", uses_gl_charge=True,
+                defaults={
+                    "production_bdt_day": inputs.get('batch_production_bdt_day', DEFAULTS['batch_production_bdt_day']),
+                    "yield_pct": inputs.get('semichem_yield_pct', DEFAULTS['semichem_yield_pct']),
+                    "ea_pct": inputs.get('semichem_ea_pct', DEFAULTS['semichem_ea_pct']),
+                    "gl_ea_pct": inputs.get('semichem_gl_ea_pct', DEFAULTS['semichem_gl_ea_pct']),
+                    "wood_moisture": inputs.get('wood_moisture_semichem', DEFAULTS['wood_moisture_semichem']),
+                },
+            ),
+        ]
+    total_prod = sum(fl.production_bdt_day for fl in fiberline_configs)
 
-    semichem_yield = inputs.get('semichem_yield_pct', DEFAULTS['semichem_yield_pct'])
-    pine_yield = inputs.get('pine_yield_pct', DEFAULTS['pine_yield_pct'])
-    semichem_ea = inputs.get('semichem_ea_pct', DEFAULTS['semichem_ea_pct'])
-    pine_ea = inputs.get('pine_ea_pct', DEFAULTS['pine_ea_pct'])
-
-    semichem_gl_ea = inputs.get('semichem_gl_ea_pct', DEFAULTS['semichem_gl_ea_pct'])
+    # Backward compat locals (used by forward leg wood_moisture and other code)
+    wood_moisture_pine = inputs.get('wood_moisture_pine', DEFAULTS['wood_moisture_pine'])
+    wood_moisture_semichem = inputs.get('wood_moisture_semichem', DEFAULTS['wood_moisture_semichem'])
 
     causticity = inputs.get('causticity_pct', DEFAULTS['causticity_pct']) / 100
     lime_charge_ratio = inputs.get('lime_charge_ratio', DEFAULTS['lime_charge_ratio'])
@@ -732,8 +753,7 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
 
     sbl_output = None
     mixed_wbl = None
-    pine_bl_output = None
-    semichem_bl_output = None
+    bl_outputs = {}  # Keyed by fiberline id
 
     OUTER_MAX_ITER = 20
     OUTER_TOL = 0.01  # Converge when |ΔNa%| < 0.01 AND |ΔS%| < 0.01
@@ -834,12 +854,9 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
             cao_in_lime=cao_in_lime, caco3_in_lime=caco3_in_lime,
             inerts_in_lime=inerts_in_lime, grits_loss=grits_loss,
             lime_temp=lime_temp, slaker_temp=slaker_temp,
-            batch_prod=batch_prod, cont_prod=cont_prod,
+            fiberline_configs=fiberline_configs,
             total_prod=total_prod, lab_wl_ea=lab_wl_ea,
             cooking_sulf=cooking_sulf,
-            semichem_yield=semichem_yield, pine_yield=pine_yield,
-            semichem_ea=semichem_ea, pine_ea=pine_ea,
-            semichem_gl_ea=semichem_gl_ea,
             target_sulf_pct=target_sulf_pct,
             total_na_losses_as_na2o_lb_hr=total_na_losses_as_na2o_lb_hr,
             washable_soda_na_lb_hr=washable_soda_na_lb_hr,
@@ -933,44 +950,35 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
         final_wl_naoh_g_L = final_wl_aa_g_L - final_wl_na2s_g_L
         final_wl_na2co3_g_L = wlc_result_inner.final_tta_g_L - final_wl_aa_g_L
 
-        pine_wl_demand = chem_result.pine.wl_demand_gpm
-        semichem_wl_demand = chem_result.semichem.wl_demand_gpm
-
-        pine_bl_output = calculate_fiberline_bl(
-            production_bdt_day=cont_prod,
-            yield_pct=pine_yield,
-            wl_flow_gpm=pine_wl_demand,
-            wl_na2s_g_L=final_wl_na2s_g_L,
-            wl_naoh_g_L=final_wl_naoh_g_L,
-            wl_na2co3_g_L=final_wl_na2co3_g_L,
-            wood_moisture_pct=wood_moisture_pine,
-            s_loss_digester_pct=s_loss_digester,
-            ncg_s_lb_bdt=loss_breakdown.ncg_s,
-            total_production_bdt_day=total_prod,
-        )
-
         gl_naoh_g_L = dt_result.gl_aa_g_L - dt_result.gl_na2s_g_L
         gl_na2co3_g_L = dt_result.gl_tta_g_L - dt_result.gl_aa_g_L
-        semichem_bl_output = calculate_fiberline_bl(
-            production_bdt_day=batch_prod,
-            yield_pct=semichem_yield,
-            wl_flow_gpm=semichem_wl_demand,
-            wl_na2s_g_L=final_wl_na2s_g_L,
-            wl_naoh_g_L=final_wl_naoh_g_L,
-            wl_na2co3_g_L=final_wl_na2co3_g_L,
-            wood_moisture_pct=wood_moisture_semichem,
-            s_loss_digester_pct=s_loss_digester,
-            ncg_s_lb_bdt=loss_breakdown.ncg_s,
-            total_production_bdt_day=total_prod,
-            gl_flow_gpm=chem_result.semichem_gl_gpm,
-            gl_na2s_g_L=dt_result.gl_na2s_g_L,
-            gl_naoh_g_L=gl_naoh_g_L,
-            gl_na2co3_g_L=gl_na2co3_g_L,
-        )
+
+        bl_outputs = {}
+        for fl in fiberline_configs:
+            gl_kwargs = {}
+            if fl.uses_gl_charge:
+                gl_kwargs = dict(
+                    gl_flow_gpm=chem_result.gl_charge_gpm.get(fl.id, 0.0),
+                    gl_na2s_g_L=dt_result.gl_na2s_g_L,
+                    gl_naoh_g_L=gl_naoh_g_L,
+                    gl_na2co3_g_L=gl_na2co3_g_L,
+                )
+            bl_outputs[fl.id] = calculate_fiberline_bl(
+                production_bdt_day=fl.production_bdt_day,
+                yield_pct=fl.yield_pct,
+                wl_flow_gpm=chem_result.fiberline_results[fl.id].wl_demand_gpm,
+                wl_na2s_g_L=final_wl_na2s_g_L,
+                wl_naoh_g_L=final_wl_naoh_g_L,
+                wl_na2co3_g_L=final_wl_na2co3_g_L,
+                wood_moisture_pct=fl.wood_moisture,
+                s_loss_digester_pct=s_loss_digester,
+                ncg_s_lb_bdt=loss_breakdown.ncg_s,
+                total_production_bdt_day=total_prod,
+                **gl_kwargs,
+            )
 
         mixed_wbl = mix_wbl_streams(
-            pine_bl=pine_bl_output,
-            semichem_bl=semichem_bl_output,
+            bl_outputs=list(bl_outputs.values()),
             cto_na_lb_hr=cto_na_lb_hr,
             cto_s_lb_hr=cto_s_lb_hr,
             cto_water_lb_hr=cto_water_lb_hr,
@@ -1115,9 +1123,21 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
         results['initial_sulfidity_pct'] = chem_result.initial_sulfidity_pct
         results['total_production_bdt_day'] = chem_result.total_production_bdt_day
         results['total_wl_demand_gpm'] = chem_result.total_wl_demand_gpm
-        results['semichem_gl_gpm'] = chem_result.semichem_gl_gpm
-        results['pine_wl_demand_gpm'] = chem_result.pine.wl_demand_gpm
-        results['semichem_wl_demand_gpm'] = chem_result.semichem.wl_demand_gpm
+
+        # Per-fiberline results (dynamic)
+        results['fiberline_ids'] = [fl.id for fl in fiberline_configs]
+        for fl_id, fl_result in chem_result.fiberline_results.items():
+            results[f'{fl_id}_wl_demand_gpm'] = fl_result.wl_demand_gpm
+        for fl_id, gl_gpm in chem_result.gl_charge_gpm.items():
+            results[f'{fl_id}_gl_gpm'] = gl_gpm
+
+        # Backward compat keys (keep for tests and API consumers)
+        results['semichem_gl_gpm'] = chem_result.gl_charge_gpm.get('semichem', 0.0)
+        pine_fl = chem_result.fiberline_results.get('pine')
+        results['pine_wl_demand_gpm'] = pine_fl.wl_demand_gpm if pine_fl else list(chem_result.fiberline_results.values())[0].wl_demand_gpm
+        semichem_fl = chem_result.fiberline_results.get('semichem')
+        if semichem_fl:
+            results['semichem_wl_demand_gpm'] = semichem_fl.wl_demand_gpm
 
     # WLC
     if wlc_result:
@@ -1272,13 +1292,17 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
         results['wbl_tds_pct'] = mixed_wbl.tds_pct
         results['wbl_total_flow_lb_hr'] = mixed_wbl.total_flow_lb_hr
 
-    if pine_bl_output:
-        results['pine_bl_organics_lb_hr'] = pine_bl_output.organics_lb_hr
-        results['pine_bl_inorganic_solids_lb_hr'] = pine_bl_output.inorganic_solids_lb_hr
-
-    if semichem_bl_output:
-        results['semichem_bl_organics_lb_hr'] = semichem_bl_output.organics_lb_hr
-        results['semichem_bl_inorganic_solids_lb_hr'] = semichem_bl_output.inorganic_solids_lb_hr
+    # Per-fiberline BL results (dynamic)
+    for fl_id, bl_out in bl_outputs.items():
+        results[f'{fl_id}_bl_organics_lb_hr'] = bl_out.organics_lb_hr
+        results[f'{fl_id}_bl_inorganic_solids_lb_hr'] = bl_out.inorganic_solids_lb_hr
+    # Backward compat keys
+    if 'pine' in bl_outputs:
+        results['pine_bl_organics_lb_hr'] = bl_outputs['pine'].organics_lb_hr
+        results['pine_bl_inorganic_solids_lb_hr'] = bl_outputs['pine'].inorganic_solids_lb_hr
+    if 'semichem' in bl_outputs:
+        results['semichem_bl_organics_lb_hr'] = bl_outputs['semichem'].organics_lb_hr
+        results['semichem_bl_inorganic_solids_lb_hr'] = bl_outputs['semichem'].inorganic_solids_lb_hr
 
     # ══════════════════════════════════════════════════════════════════
     # Step 6: Tank inventories (outside iteration — uses lab values)
@@ -1393,31 +1417,20 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
             'flow_gpm': round(wl_total_gpm, 1),
         })
 
-    # Pine Digester → WBL
-    if pine_bl_output:
-        unit_ops.append({
-            'stage': 'Pine Digester BL',
-            'na_lb_hr': round(pine_bl_output.na_element_lb_hr, 1),
-            's_lb_hr': round(pine_bl_output.s_element_lb_hr, 1),
-            'na_pct_ds': round(pine_bl_output.wbl_na_pct_ds, 2),
-            's_pct_ds': round(pine_bl_output.wbl_s_pct_ds, 2),
-            'tta_na2o_ton_hr': round(pine_bl_output.na2s_na2o_lb_hr / 2000 if hasattr(pine_bl_output, 'na2s_na2o_lb_hr') else 0, 4),
-            'na2s_na2o_ton_hr': round(pine_bl_output.na2s_na2o_lb_hr / 2000 if hasattr(pine_bl_output, 'na2s_na2o_lb_hr') else 0, 4),
-            'flow_gpm': None,
-        })
-
-    # Semichem Digester → WBL
-    if semichem_bl_output:
-        unit_ops.append({
-            'stage': 'Semichem Digester BL',
-            'na_lb_hr': round(semichem_bl_output.na_element_lb_hr, 1),
-            's_lb_hr': round(semichem_bl_output.s_element_lb_hr, 1),
-            'na_pct_ds': round(semichem_bl_output.wbl_na_pct_ds, 2),
-            's_pct_ds': round(semichem_bl_output.wbl_s_pct_ds, 2),
-            'tta_na2o_ton_hr': None,
-            'na2s_na2o_ton_hr': None,
-            'flow_gpm': None,
-        })
+    # Per-fiberline Digester → WBL
+    for fl in fiberline_configs:
+        bl_out = bl_outputs.get(fl.id)
+        if bl_out:
+            unit_ops.append({
+                'stage': f'{fl.name} Digester BL',
+                'na_lb_hr': round(bl_out.na_element_lb_hr, 1),
+                's_lb_hr': round(bl_out.s_element_lb_hr, 1),
+                'na_pct_ds': round(bl_out.wbl_na_pct_ds, 2),
+                's_pct_ds': round(bl_out.wbl_s_pct_ds, 2),
+                'tta_na2o_ton_hr': round(bl_out.na2s_na2o_lb_hr / 2000 if hasattr(bl_out, 'na2s_na2o_lb_hr') else 0, 4),
+                'na2s_na2o_ton_hr': round(bl_out.na2s_na2o_lb_hr / 2000 if hasattr(bl_out, 'na2s_na2o_lb_hr') else 0, 4),
+                'flow_gpm': None,
+            })
 
     # CTO Brine — Na2SO4 compound mass is the "dry solids"
     cto_na2so4_lb_hr = cto_s_lb_hr * (MW['Na2SO4'] / MW['S']) if cto_s_lb_hr > 0 else 0
