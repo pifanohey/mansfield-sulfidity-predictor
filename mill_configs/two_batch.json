@@ -1,0 +1,34 @@
+{
+  "mill_name": "Two Batch Mill",
+  "makeup_chemical": "naoh",
+  "fiberlines": [
+    {
+      "id": "batch1",
+      "name": "Batch Line 1",
+      "type": "batch",
+      "cooking_type": "chemical",
+      "uses_gl_charge": false,
+      "defaults": {
+        "production_bdt_day": 700,
+        "yield_pct": 0.56,
+        "ea_pct": 0.13,
+        "wood_moisture": 0.52
+      }
+    },
+    {
+      "id": "batch2",
+      "name": "Batch Line 2",
+      "type": "batch",
+      "cooking_type": "chemical",
+      "uses_gl_charge": false,
+      "defaults": {
+        "production_bdt_day": 650,
+        "yield_pct": 0.54,
+        "ea_pct": 0.14,
+        "wood_moisture": 0.50
+      }
+    }
+  ],
+  "tanks": [],
+  "defaults": {}
+}

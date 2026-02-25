@@ -1,0 +1,48 @@
+{
+  "mill_name": "Three Line Mill",
+  "makeup_chemical": "saltcake",
+  "fiberlines": [
+    {
+      "id": "line1",
+      "name": "Line 1 (Continuous)",
+      "type": "continuous",
+      "cooking_type": "chemical",
+      "uses_gl_charge": false,
+      "defaults": {
+        "production_bdt_day": 1000,
+        "yield_pct": 0.55,
+        "ea_pct": 0.12,
+        "wood_moisture": 0.50
+      }
+    },
+    {
+      "id": "line2",
+      "name": "Line 2 (Continuous)",
+      "type": "continuous",
+      "cooking_type": "chemical",
+      "uses_gl_charge": false,
+      "defaults": {
+        "production_bdt_day": 800,
+        "yield_pct": 0.57,
+        "ea_pct": 0.11,
+        "wood_moisture": 0.48
+      }
+    },
+    {
+      "id": "semichem",
+      "name": "Semichem (Batch)",
+      "type": "batch",
+      "cooking_type": "semichem",
+      "uses_gl_charge": true,
+      "defaults": {
+        "production_bdt_day": 500,
+        "yield_pct": 0.72,
+        "ea_pct": 0.04,
+        "gl_ea_pct": 0.02,
+        "wood_moisture": 0.46
+      }
+    }
+  ],
+  "tanks": [],
+  "defaults": {}
+}
