@@ -110,14 +110,8 @@ class TestTwoFiberlines:
     def test_pine_no_gl_charge(self, result):
         assert result.gl_charge_gpm["pine"] == 0.0
 
-    def test_backward_compat_pine_property(self, result):
-        assert result.pine is result.fiberline_results["pine"]
-
-    def test_backward_compat_semichem_property(self, result):
-        assert result.semichem is result.fiberline_results["semichem"]
-
-    def test_backward_compat_semichem_gl_gpm(self, result):
-        assert result.semichem_gl_gpm == result.gl_charge_gpm["semichem"]
+    def test_semichem_gl_charge_matches_dict(self, result):
+        assert result.gl_charge_gpm["semichem"] > 0
 
 
 # ── Test 2: Single fiberline ─────────────────────────────────────────────────
@@ -150,13 +144,6 @@ class TestSingleFiberline:
 
     def test_no_gl_charge(self, result):
         assert result.gl_charge_gpm["main"] == 0.0
-
-    def test_pine_property_falls_back_to_first(self, result):
-        """With no 'pine' key, .pine falls back to first fiberline."""
-        assert result.pine is result.fiberline_results["main"]
-
-    def test_semichem_property_returns_none(self, result):
-        assert result.semichem is None
 
 
 # ── Test 3: Three fiberlines (2 chemical + 1 semichem) ───────────────────────
@@ -217,76 +204,3 @@ class TestThreeFiberlines:
         assert result.gl_charge_gpm["semichem_line"] > 0
 
 
-# ── Test 4: Backward compatibility — V1 flat params ─────────────────────────
-
-class TestBackwardCompat:
-    """V1 path (fiberlines=None) must produce identical results to old API."""
-
-    @pytest.fixture
-    def result_v1(self) -> ChemicalChargeResults:
-        """Call with flat params (V1 path)."""
-        return calculate_chemical_charge(
-            gl_flow_to_slaker_gpm=659.0,
-            yield_factor=1.033,
-            wl_tta_g_L=121.0,
-            wl_na2s_g_L=32.5,
-            batch_production_bdt_day=636.854,
-            cont_production_bdt_day=1250.69,
-            wl_ea_g_L=85.0,
-            semichem_yield=0.7019,
-            pine_yield=0.5694,
-            semichem_ea_pct=0.0365,
-            pine_ea_pct=0.122,
-            dregs_underflow_gpm=12.9,
-            semichem_gl_ea_pct=0.017,
-            gl_aa_g_L=43.65,
-            gl_na2s_g_L=31.74,
-        )
-
-    @pytest.fixture
-    def result_v2(self) -> ChemicalChargeResults:
-        """Call with fiberlines param (V2 path)."""
-        return calculate_chemical_charge(
-            fiberlines=[PINE_FL, SEMICHEM_FL],
-            gl_flow_to_slaker_gpm=659.0,
-            yield_factor=1.033,
-            wl_tta_g_L=121.0,
-            wl_na2s_g_L=32.5,
-            wl_ea_g_L=85.0,
-            gl_aa_g_L=43.65,
-            gl_na2s_g_L=31.74,
-            dregs_underflow_gpm=12.9,
-        )
-
-    def test_v1_has_pine_and_semichem(self, result_v1):
-        assert result_v1.pine is not None
-        assert result_v1.semichem is not None
-
-    def test_v1_fiberline_results_dict(self, result_v1):
-        assert "pine" in result_v1.fiberline_results
-        assert "semichem" in result_v1.fiberline_results
-
-    def test_v1_semichem_gl_gpm_property(self, result_v1):
-        assert result_v1.semichem_gl_gpm > 0
-        assert result_v1.semichem_gl_gpm == result_v1.gl_charge_gpm["semichem"]
-
-    def test_total_production_matches(self, result_v1, result_v2):
-        assert abs(result_v1.total_production_bdt_day - result_v2.total_production_bdt_day) < 0.01
-
-    def test_total_wl_demand_matches(self, result_v1, result_v2):
-        assert abs(result_v1.total_wl_demand_gpm - result_v2.total_wl_demand_gpm) < 0.01
-
-    def test_pine_wl_demand_matches(self, result_v1, result_v2):
-        assert abs(result_v1.pine.wl_demand_gpm - result_v2.pine.wl_demand_gpm) < 0.01
-
-    def test_semichem_wl_demand_matches(self, result_v1, result_v2):
-        assert abs(result_v1.semichem.wl_demand_gpm - result_v2.semichem.wl_demand_gpm) < 0.01
-
-    def test_semichem_gl_gpm_matches(self, result_v1, result_v2):
-        assert abs(result_v1.semichem_gl_gpm - result_v2.semichem_gl_gpm) < 0.01
-
-    def test_initial_sulfidity_matches(self, result_v1, result_v2):
-        assert abs(result_v1.initial_sulfidity_pct - result_v2.initial_sulfidity_pct) < 0.001
-
-    def test_wl_flow_from_slaker_matches(self, result_v1, result_v2):
-        assert abs(result_v1.wl_flow_from_slaker_gpm - result_v2.wl_flow_from_slaker_gpm) < 0.01

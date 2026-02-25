@@ -589,38 +589,9 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
     smelt_cp = inputs.get('smelt_cp_btu_lb_f', DEFAULTS['smelt_cp_btu_lb_f'])
     latent_heat = inputs.get('latent_heat_212_btu_lb', DEFAULTS['latent_heat_212_btu_lb'])
 
-    # ── Build fiberline configs (V2 or V1 backward compat) ──
-    if 'fiberlines' in inputs:
-        fiberline_configs: List[FiberlineConfig] = inputs['fiberlines']
-    else:
-        fiberline_configs = [
-            FiberlineConfig(
-                id="pine", name="Pine", type="continuous",
-                cooking_type="chemical", uses_gl_charge=False,
-                defaults={
-                    "production_bdt_day": inputs.get('cont_production_bdt_day', DEFAULTS['cont_production_bdt_day']),
-                    "yield_pct": inputs.get('pine_yield_pct', DEFAULTS['pine_yield_pct']),
-                    "ea_pct": inputs.get('pine_ea_pct', DEFAULTS['pine_ea_pct']),
-                    "wood_moisture": inputs.get('wood_moisture_pine', DEFAULTS['wood_moisture_pine']),
-                },
-            ),
-            FiberlineConfig(
-                id="semichem", name="Semichem", type="batch",
-                cooking_type="semichem", uses_gl_charge=True,
-                defaults={
-                    "production_bdt_day": inputs.get('batch_production_bdt_day', DEFAULTS['batch_production_bdt_day']),
-                    "yield_pct": inputs.get('semichem_yield_pct', DEFAULTS['semichem_yield_pct']),
-                    "ea_pct": inputs.get('semichem_ea_pct', DEFAULTS['semichem_ea_pct']),
-                    "gl_ea_pct": inputs.get('semichem_gl_ea_pct', DEFAULTS['semichem_gl_ea_pct']),
-                    "wood_moisture": inputs.get('wood_moisture_semichem', DEFAULTS['wood_moisture_semichem']),
-                },
-            ),
-        ]
+    # ── Fiberline configs (required) ──
+    fiberline_configs: List[FiberlineConfig] = inputs.get('fiberlines', DEFAULTS['fiberlines'])
     total_prod = sum(fl.production_bdt_day for fl in fiberline_configs)
-
-    # Backward compat locals (used by forward leg wood_moisture and other code)
-    wood_moisture_pine = inputs.get('wood_moisture_pine', DEFAULTS['wood_moisture_pine'])
-    wood_moisture_semichem = inputs.get('wood_moisture_semichem', DEFAULTS['wood_moisture_semichem'])
 
     causticity = inputs.get('causticity_pct', DEFAULTS['causticity_pct']) / 100
     lime_charge_ratio = inputs.get('lime_charge_ratio', DEFAULTS['lime_charge_ratio'])
@@ -680,8 +651,6 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
     # Forward leg parameters
     s_loss_digester = inputs.get('s_loss_digester_pct', DEFAULTS['s_loss_digester_pct'])
     target_sbl_tds = inputs.get('target_sbl_tds_pct', DEFAULTS['target_sbl_tds_pct'])
-    wood_moisture_pine = inputs.get('wood_moisture_pine', DEFAULTS['wood_moisture_pine'])
-    wood_moisture_semichem = inputs.get('wood_moisture_semichem', DEFAULTS['wood_moisture_semichem'])
 
     # S deficit override — when provided, bypasses outer loop convergence
     s_deficit_override = inputs.get('s_deficit_lbs_hr', None)
@@ -1296,13 +1265,6 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
     for fl_id, bl_out in bl_outputs.items():
         results[f'{fl_id}_bl_organics_lb_hr'] = bl_out.organics_lb_hr
         results[f'{fl_id}_bl_inorganic_solids_lb_hr'] = bl_out.inorganic_solids_lb_hr
-    # Backward compat keys
-    if 'pine' in bl_outputs:
-        results['pine_bl_organics_lb_hr'] = bl_outputs['pine'].organics_lb_hr
-        results['pine_bl_inorganic_solids_lb_hr'] = bl_outputs['pine'].inorganic_solids_lb_hr
-    if 'semichem' in bl_outputs:
-        results['semichem_bl_organics_lb_hr'] = bl_outputs['semichem'].organics_lb_hr
-        results['semichem_bl_inorganic_solids_lb_hr'] = bl_outputs['semichem'].inorganic_solids_lb_hr
 
     # ══════════════════════════════════════════════════════════════════
     # Step 6: Tank inventories (outside iteration — uses lab values)

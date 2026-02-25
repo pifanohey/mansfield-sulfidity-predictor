@@ -46,31 +46,36 @@ class TestLoadMillConfig:
 
 # ── Fiberline defaults vs constants.py ───────────────────────────────────────
 
+def _default_fl(fl_id):
+    """Get the default FiberlineConfig from DEFAULTS by id."""
+    return next(fl for fl in DEFAULTS["fiberlines"] if fl.id == fl_id)
+
+
 class TestFiberlineDefaults:
-    """Verify fiberline default values match constants.py DEFAULTS."""
+    """Verify fiberline default values from JSON match constants.py DEFAULTS."""
 
     def test_pine_production(self):
         cfg = load_mill_config("pine_hill")
         pine = [fl for fl in cfg.fiberlines if fl.id == "pine"][0]
         assert pine.production_bdt_day == pytest.approx(
-            DEFAULTS["cont_production_bdt_day"], rel=1e-4
+            _default_fl("pine").production_bdt_day, rel=1e-4
         )
 
     def test_pine_yield(self):
         cfg = load_mill_config("pine_hill")
         pine = [fl for fl in cfg.fiberlines if fl.id == "pine"][0]
-        assert pine.yield_pct == pytest.approx(DEFAULTS["pine_yield_pct"], rel=1e-4)
+        assert pine.yield_pct == pytest.approx(_default_fl("pine").yield_pct, rel=1e-4)
 
     def test_pine_ea(self):
         cfg = load_mill_config("pine_hill")
         pine = [fl for fl in cfg.fiberlines if fl.id == "pine"][0]
-        assert pine.ea_pct == pytest.approx(DEFAULTS["pine_ea_pct"], rel=1e-4)
+        assert pine.ea_pct == pytest.approx(_default_fl("pine").ea_pct, rel=1e-4)
 
     def test_pine_wood_moisture(self):
         cfg = load_mill_config("pine_hill")
         pine = [fl for fl in cfg.fiberlines if fl.id == "pine"][0]
         assert pine.wood_moisture == pytest.approx(
-            DEFAULTS["wood_moisture_pine"], rel=1e-4
+            _default_fl("pine").wood_moisture, rel=1e-4
         )
 
     def test_pine_no_gl_charge(self):
@@ -82,31 +87,31 @@ class TestFiberlineDefaults:
         cfg = load_mill_config("pine_hill")
         sc = [fl for fl in cfg.fiberlines if fl.id == "semichem"][0]
         assert sc.production_bdt_day == pytest.approx(
-            DEFAULTS["batch_production_bdt_day"], rel=1e-4
+            _default_fl("semichem").production_bdt_day, rel=1e-4
         )
 
     def test_semichem_yield(self):
         cfg = load_mill_config("pine_hill")
         sc = [fl for fl in cfg.fiberlines if fl.id == "semichem"][0]
-        assert sc.yield_pct == pytest.approx(DEFAULTS["semichem_yield_pct"], rel=1e-4)
+        assert sc.yield_pct == pytest.approx(_default_fl("semichem").yield_pct, rel=1e-4)
 
     def test_semichem_ea(self):
         cfg = load_mill_config("pine_hill")
         sc = [fl for fl in cfg.fiberlines if fl.id == "semichem"][0]
-        assert sc.ea_pct == pytest.approx(DEFAULTS["semichem_ea_pct"], rel=1e-4)
+        assert sc.ea_pct == pytest.approx(_default_fl("semichem").ea_pct, rel=1e-4)
 
     def test_semichem_gl_ea(self):
         cfg = load_mill_config("pine_hill")
         sc = [fl for fl in cfg.fiberlines if fl.id == "semichem"][0]
         assert sc.gl_ea_pct == pytest.approx(
-            DEFAULTS["semichem_gl_ea_pct"], rel=1e-4
+            _default_fl("semichem").gl_ea_pct, rel=1e-4
         )
 
     def test_semichem_wood_moisture(self):
         cfg = load_mill_config("pine_hill")
         sc = [fl for fl in cfg.fiberlines if fl.id == "semichem"][0]
         assert sc.wood_moisture == pytest.approx(
-            DEFAULTS["wood_moisture_semichem"], rel=1e-4
+            _default_fl("semichem").wood_moisture, rel=1e-4
         )
 
 

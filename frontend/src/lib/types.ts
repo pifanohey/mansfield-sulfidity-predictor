@@ -57,16 +57,15 @@ export interface CalculationRequest {
   bl_s_pct: number;
   bl_k_pct: number;
   recovery_boiler?: RecoveryBoilerInputs;
-  batch_production_bdt_day: number;
-  cont_production_bdt_day: number;
   cooking_wl_sulfidity: number;
-  // Fiberline parameters
-  semichem_yield_pct: number;
-  pine_yield_pct: number;
-  semichem_ea_pct: number;
-  pine_ea_pct: number;
-  // Semichem GL charge (Excel 3_Chem G5-G17)
-  semichem_gl_ea_pct: number;
+  // V2: Config-driven fiberline inputs (required)
+  fiberlines: Array<{
+    id: string;
+    production_bdt_day: number;
+    yield_pct: number;
+    ea_pct: number;
+    gl_ea_pct?: number;
+  }>;
   // Dissolving tank (Excel 2_RB I43-I75)
   ww_flow_gpm: number;
   ww_tta_lb_ft3: number;
@@ -110,14 +109,6 @@ export interface CalculationRequest {
   // NaSH/NaOH overrides (bypass Secant and dual-constraint)
   nash_dry_override_lb_hr?: number;
   naoh_dry_override_lb_hr?: number;
-  // V2: Config-driven fiberline inputs (when present, backend uses V2 path)
-  fiberlines?: Array<{
-    id: string;
-    production_bdt_day: number;
-    yield_pct: number;
-    ea_pct: number;
-    gl_ea_pct?: number;
-  }>;
 }
 
 export interface SulfidityOutput {
@@ -178,13 +169,16 @@ export interface MassBalanceOutput {
   net_s_balance_lb_hr: number;
 }
 
+export interface FiberlineBLResult {
+  id: string;
+  name: string;
+  organics_lb_hr: number;
+  inorganic_solids_lb_hr: number;
+}
+
 export interface ForwardLegOutput {
-  // Pine fiberline
-  pine_bl_organics_lb_hr: number;
-  pine_bl_inorganic_solids_lb_hr: number;
-  // Semichem fiberline
-  semichem_bl_organics_lb_hr: number;
-  semichem_bl_inorganic_solids_lb_hr: number;
+  // Per-fiberline BL results
+  fiberline_bl: FiberlineBLResult[];
   // CTO
   cto_na_lb_hr: number;
   cto_s_lbs_hr: number;

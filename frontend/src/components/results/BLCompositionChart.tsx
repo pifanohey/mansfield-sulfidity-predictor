@@ -3,11 +3,15 @@
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { fmtNum } from "@/lib/format";
 
+interface FiberlineBLResult {
+  id: string;
+  name: string;
+  organics_lb_hr: number;
+  inorganic_solids_lb_hr: number;
+}
+
 interface BLCompositionData {
-  pine_bl_organics_lb_hr: number;
-  pine_bl_inorganic_solids_lb_hr: number;
-  semichem_bl_organics_lb_hr: number;
-  semichem_bl_inorganic_solids_lb_hr: number;
+  fiberline_bl: FiberlineBLResult[];
   cto_na_lb_hr: number;
   cto_s_lbs_hr: number;
   wbl_total_flow_lb_hr: number;
@@ -114,8 +118,10 @@ function MergeArrows() {
 }
 
 export default function BLCompositionChart({ data }: Props) {
-  const pineTotal = data.pine_bl_organics_lb_hr + data.pine_bl_inorganic_solids_lb_hr;
-  const semicchemTotal = data.semichem_bl_organics_lb_hr + data.semichem_bl_inorganic_solids_lb_hr;
+  const pineFL = data.fiberline_bl?.find(fl => fl.id === 'pine');
+  const semicchemFL = data.fiberline_bl?.find(fl => fl.id === 'semichem');
+  const pineTotal = (pineFL?.organics_lb_hr ?? 0) + (pineFL?.inorganic_solids_lb_hr ?? 0);
+  const semicchemTotal = (semicchemFL?.organics_lb_hr ?? 0) + (semicchemFL?.inorganic_solids_lb_hr ?? 0);
 
   const ops = data.unit_operations || [];
   const pineBL = ops.find(o => o.stage.includes('Pine'));
@@ -137,9 +143,9 @@ export default function BLCompositionChart({ data }: Props) {
 
             {/* Row 1: Fiberlines (sources) */}
             <div className="grid grid-cols-3 gap-4 mb-2">
-              <ProcessBox title="Pine Fiberline" color="green">
-                <DataRow label="Organics" value={data.pine_bl_organics_lb_hr} unit="lb/hr" />
-                <DataRow label="Inorganics" value={data.pine_bl_inorganic_solids_lb_hr} unit="lb/hr" />
+              <ProcessBox title={pineFL?.name ?? "Pine Fiberline"} color="green">
+                <DataRow label="Organics" value={pineFL?.organics_lb_hr ?? 0} unit="lb/hr" />
+                <DataRow label="Inorganics" value={pineFL?.inorganic_solids_lb_hr ?? 0} unit="lb/hr" />
                 <div className="border-t border-emerald-500/20 my-1" />
                 <DataRow label="Total Solids" value={pineTotal} unit="lb/hr" highlight />
                 {pineBL && (
@@ -161,9 +167,9 @@ export default function BLCompositionChart({ data }: Props) {
                 </div>
               </ProcessBox>
 
-              <ProcessBox title="Semichem Fiberline" color="blue">
-                <DataRow label="Organics" value={data.semichem_bl_organics_lb_hr} unit="lb/hr" />
-                <DataRow label="Inorganics" value={data.semichem_bl_inorganic_solids_lb_hr} unit="lb/hr" />
+              <ProcessBox title={semicchemFL?.name ?? "Semichem Fiberline"} color="blue">
+                <DataRow label="Organics" value={semicchemFL?.organics_lb_hr ?? 0} unit="lb/hr" />
+                <DataRow label="Inorganics" value={semicchemFL?.inorganic_solids_lb_hr ?? 0} unit="lb/hr" />
                 <div className="border-t border-cyan/20 my-1" />
                 <DataRow label="Total Solids" value={semicchemTotal} unit="lb/hr" highlight />
                 {semicchemBL && (

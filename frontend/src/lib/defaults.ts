@@ -62,15 +62,23 @@ export const DEFAULT_INPUTS: CalculationRequest = {
   bl_s_pct: 4.01,
   bl_k_pct: 1.58,
   recovery_boiler: DEFAULT_RB_INPUTS,
-  batch_production_bdt_day: 636.854,
-  cont_production_bdt_day: 1250.69,
   cooking_wl_sulfidity: 0.283,
-  // Fiberline
-  semichem_yield_pct: 0.7019,
-  pine_yield_pct: 0.5694,
-  semichem_ea_pct: 0.0365,
-  pine_ea_pct: 0.122,
-  semichem_gl_ea_pct: 0.017,
+  // V2: Config-driven fiberlines
+  fiberlines: [
+    {
+      id: "pine",
+      production_bdt_day: 1250.69,
+      yield_pct: 0.5694,
+      ea_pct: 0.122,
+    },
+    {
+      id: "semichem",
+      production_bdt_day: 636.854,
+      yield_pct: 0.7019,
+      ea_pct: 0.0365,
+      gl_ea_pct: 0.017,
+    },
+  ],
   // Dissolving tank
   ww_flow_gpm: 625.0,
   ww_tta_lb_ft3: 1.07978,

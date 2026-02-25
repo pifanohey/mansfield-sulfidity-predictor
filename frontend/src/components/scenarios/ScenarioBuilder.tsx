@@ -24,7 +24,7 @@ const PARAMS: ScenarioParam[] = [
   { key: "reduction_eff_pct", label: "Reduction Efficiency", unit: "%", min: 85, max: 99, step: 0.5 },
   { key: "target_sulfidity_pct", label: "Target Sulfidity", unit: "%", min: 25, max: 35, step: 0.1 },
   { key: "causticity_pct", label: "Causticity", unit: "%", min: 70, max: 90, step: 0.5 },
-  { key: "cont_production_bdt_day", label: "Pine Production", unit: "BDT/day", min: 800, max: 1600, step: 10 },
+  { key: "fl_pine_production", label: "Pine Production", unit: "BDT/day", min: 800, max: 1600, step: 10 },
   { key: "cto_tpd", label: "CTO Production", unit: "TPD", min: 0, max: 100, step: 1 },
   { key: "loss_pulp_washable_soda_na", label: "Washable Soda Na Loss", unit: "lb Na₂O/BDT", min: 0, max: 30, step: 0.5 },
 ];
@@ -46,10 +46,50 @@ function getBaseValue(inputs: CalculationRequest, param: ScenarioParam): number 
     return obj.recovery_boiler?.reduction_eff_pct ?? 95.0;
   }
 
+  // Fiberline production: extract from fiberlines array
+  if (param.key === "fl_pine_production") {
+    return inputs.fiberlines?.find((fl) => fl.id === "pine")?.production_bdt_day ?? 1250.69;
+  }
+  if (param.key === "fl_semichem_production") {
+    return inputs.fiberlines?.find((fl) => fl.id === "semichem")?.production_bdt_day ?? 636.854;
+  }
+
   if (param.nested) {
     return obj[param.nested]?.[param.key] ?? 0;
   }
   return obj[param.key] ?? 0;
+}
+
+/** Build what-if overrides, translating fiberline production keys to a fiberlines array. */
+function buildFiberlineOverrides(
+  inputs: CalculationRequest,
+  overrides: Record<string, number>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  let needsFiberlineOverride = false;
+
+  for (const [key, value] of Object.entries(overrides)) {
+    if (key === "fl_pine_production" || key === "fl_semichem_production") {
+      needsFiberlineOverride = true;
+    } else {
+      result[key] = value;
+    }
+  }
+
+  if (needsFiberlineOverride && inputs.fiberlines) {
+    const fiberlines = inputs.fiberlines.map((fl) => {
+      if (fl.id === "pine" && overrides["fl_pine_production"] !== undefined) {
+        return { ...fl, production_bdt_day: overrides["fl_pine_production"] };
+      }
+      if (fl.id === "semichem" && overrides["fl_semichem_production"] !== undefined) {
+        return { ...fl, production_bdt_day: overrides["fl_semichem_production"] };
+      }
+      return fl;
+    });
+    result["fiberlines"] = fiberlines;
+  }
+
+  return result;
 }
 
 interface Props {
@@ -72,7 +112,7 @@ export default function ScenarioBuilder({ inputs, baseResults }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const res = await whatIf(inputs, overrides);
+      const res = await whatIf(inputs, buildFiberlineOverrides(inputs, overrides));
       setScenarioResults(res.scenario_results);
     } catch (e) {
       console.error("What-if scenario failed:", e);

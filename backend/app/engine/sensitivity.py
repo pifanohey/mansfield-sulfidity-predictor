@@ -26,6 +26,11 @@ _KEY_TO_DEFAULT = {
     'reduction_eff_pct': 'reduction_efficiency_pct',
 }
 
+# Pine production default from fiberline configs
+_pine_prod_default = next(
+    (fl.production_bdt_day for fl in DEFAULTS['fiberlines'] if fl.id == 'pine'), 1250.69
+)
+
 
 @dataclass
 class SensitivityResult:
@@ -39,13 +44,14 @@ class SensitivityResult:
 
 # Define perturbations: (input_key, description, delta_value)
 # Only parameters that produce meaningful changes with outer loop enabled.
+# Special key '__fiberline_pine_production' is handled in the sensitivity runner.
 PERTURBATIONS = [
     ('reduction_eff_pct', 'RE -2%', -2.0),
     ('reduction_eff_pct', 'RE +2%', 2.0),
     ('target_sulfidity_pct', 'Target +1%', 1.0),
     ('target_sulfidity_pct', 'Target -1%', -1.0),
     ('causticity_pct', 'CE -6% (75%)', -6.0),
-    ('cont_production_bdt_day', 'Pine prod +10%', round(DEFAULTS['cont_production_bdt_day'] * 0.10, 1)),
+    ('__fiberline_pine_production', 'Pine prod +10%', round(_pine_prod_default * 0.10, 1)),
     ('cto_tpd', 'CTO +20 TPD', 20.0),
     ('loss_pulp_washable_soda_na', 'Wash Na loss +5 lb/BDT', 5.0),
 ]
@@ -79,10 +85,21 @@ def run_sensitivity_analysis(
     results = []
     for param_key, description, delta in perturbations:
         perturbed_inputs = copy.deepcopy(base_inputs)
-        default_key = _KEY_TO_DEFAULT.get(param_key, param_key)
-        base_val = perturbed_inputs.get(param_key, DEFAULTS.get(default_key, 0.0))
-        new_val = base_val + delta
-        perturbed_inputs[param_key] = new_val
+
+        # Special handling for fiberline production perturbation
+        if param_key == '__fiberline_pine_production':
+            fl_configs = perturbed_inputs.get('fiberlines', copy.deepcopy(DEFAULTS['fiberlines']))
+            pine_fl = next((fl for fl in fl_configs if fl.id == 'pine'), None)
+            base_val = pine_fl.production_bdt_day if pine_fl else _pine_prod_default
+            new_val = base_val + delta
+            if pine_fl:
+                pine_fl.defaults['production_bdt_day'] = new_val
+            perturbed_inputs['fiberlines'] = fl_configs
+        else:
+            default_key = _KEY_TO_DEFAULT.get(param_key, param_key)
+            base_val = perturbed_inputs.get(param_key, DEFAULTS.get(default_key, 0.0))
+            new_val = base_val + delta
+            perturbed_inputs[param_key] = new_val
 
         try:
             perturbed_results = run_calculations(perturbed_inputs)

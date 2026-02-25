@@ -23,8 +23,8 @@ interface PredictorParam {
 const PREDICTOR_PARAMS: PredictorParam[] = [
   { key: "reduction_eff_pct", label: "Reduction Efficiency", unit: "%", min: 85, max: 99, step: 0.5 },
   { key: "causticity_pct", label: "Causticity", unit: "%", min: 70, max: 90, step: 0.5 },
-  { key: "cont_production_bdt_day", label: "Pine Production", unit: "BDT/day", min: 800, max: 1600, step: 10 },
-  { key: "batch_production_bdt_day", label: "Semichem Production", unit: "BDT/day", min: 300, max: 900, step: 10 },
+  { key: "fl_pine_production", label: "Pine Production", unit: "BDT/day", min: 800, max: 1600, step: 10 },
+  { key: "fl_semichem_production", label: "Semichem Production", unit: "BDT/day", min: 300, max: 900, step: 10 },
   { key: "cto_tpd", label: "CTO Production", unit: "TPD", min: 0, max: 100, step: 1 },
   { key: "saltcake_flow_lb_hr", label: "Saltcake Makeup", unit: "lb/hr", min: 0, max: 5000, step: 50 },
   { key: "nash_dry_override_lb_hr", label: "NaSH (dry)", unit: "lb/hr", min: 0, max: 3000, step: 10 },
@@ -48,8 +48,47 @@ function getBaseValue(
   if (param.key === "naoh_dry_override_lb_hr" && baseResults) {
     return baseResults.makeup.naoh_dry_lb_hr;
   }
+  // Fiberline production: extract from fiberlines array
+  if (param.key === "fl_pine_production") {
+    return inputs.fiberlines?.find((fl) => fl.id === "pine")?.production_bdt_day ?? 1250.69;
+  }
+  if (param.key === "fl_semichem_production") {
+    return inputs.fiberlines?.find((fl) => fl.id === "semichem")?.production_bdt_day ?? 636.854;
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (inputs as any)[param.key] ?? 0;
+}
+
+/** Build what-if overrides, translating fiberline production keys to a fiberlines array. */
+function buildFiberlineOverrides(
+  inputs: CalculationRequest,
+  overrides: Record<string, number>,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  let needsFiberlineOverride = false;
+
+  for (const [key, value] of Object.entries(overrides)) {
+    if (key === "fl_pine_production" || key === "fl_semichem_production") {
+      needsFiberlineOverride = true;
+    } else {
+      result[key] = value;
+    }
+  }
+
+  if (needsFiberlineOverride && inputs.fiberlines) {
+    const fiberlines = inputs.fiberlines.map((fl) => {
+      if (fl.id === "pine" && overrides["fl_pine_production"] !== undefined) {
+        return { ...fl, production_bdt_day: overrides["fl_pine_production"] };
+      }
+      if (fl.id === "semichem" && overrides["fl_semichem_production"] !== undefined) {
+        return { ...fl, production_bdt_day: overrides["fl_semichem_production"] };
+      }
+      return fl;
+    });
+    result["fiberlines"] = fiberlines;
+  }
+
+  return result;
 }
 
 interface TornadoRow {
@@ -80,7 +119,7 @@ export default function SulfidityPredictor({ inputs, baseResults }: Props) {
     setOverrides((prev) => ({ ...prev, [param.key]: value }));
   };
 
-  const buildOverrides = (): Record<string, number> => {
+  const buildOverridesRaw = (): Record<string, number> => {
     const o: Record<string, number> = {};
     for (const param of PREDICTOR_PARAMS) {
       const base = getBaseValue(inputs, baseResults, param);
@@ -93,8 +132,8 @@ export default function SulfidityPredictor({ inputs, baseResults }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const currentOverrides = buildOverrides();
-      const mainRes = await whatIf(inputs, currentOverrides);
+      const currentOverrides = buildOverridesRaw();
+      const mainRes = await whatIf(inputs, buildFiberlineOverrides(inputs, currentOverrides));
       setResult(mainRes.scenario_results);
       const mainSulf = mainRes.scenario_results.sulfidity.final_pct;
       setBaseSulfidity(mainSulf);
@@ -115,9 +154,9 @@ export default function SulfidityPredictor({ inputs, baseResults }: Props) {
         }
 
         const lowOverrides = { ...currentOverrides, [param.key]: lowVal };
-        const lowP = whatIf(inputs, lowOverrides).then((r) => r.scenario_results.sulfidity.final_pct);
+        const lowP = whatIf(inputs, buildFiberlineOverrides(inputs, lowOverrides)).then((r) => r.scenario_results.sulfidity.final_pct);
         const highOverrides = { ...currentOverrides, [param.key]: highVal };
-        const highP = whatIf(inputs, highOverrides).then((r) => r.scenario_results.sulfidity.final_pct);
+        const highP = whatIf(inputs, buildFiberlineOverrides(inputs, highOverrides)).then((r) => r.scenario_results.sulfidity.final_pct);
 
         promises.push(
           Promise.all([lowP, highP]).then(([lowSulf, highSulf]) => ({

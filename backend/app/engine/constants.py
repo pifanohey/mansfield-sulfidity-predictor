@@ -5,6 +5,8 @@ Reference: SULFIDITY_MODEL_CORRECTED_FINAL v4.xlsx
 All formulas traced and validated against Excel model.
 """
 
+from .mill_profile import FiberlineConfig
+
 # Molecular Weights (g/mol)
 MW = {
     'Na': 22.98,
@@ -147,9 +149,30 @@ DEFAULTS = {
     # Saltcake — single flow input; Na/S computed from Na2SO4 chemistry
     'saltcake_flow_lb_hr': 2227.0,  # B40 = total Na2SO4 flow lb/hr
 
-    # Production
-    'batch_production_bdt_day': 636.854,   # D7 (semichem)
-    'cont_production_bdt_day': 1250.69,    # D33 (pine)
+    # Fiberline configs (Pine Hill: 2 fiberlines)
+    'fiberlines': [
+        FiberlineConfig(
+            id="pine", name="Pine", type="continuous",
+            cooking_type="chemical", uses_gl_charge=False,
+            defaults={
+                "production_bdt_day": 1250.69,
+                "yield_pct": 0.5694,
+                "ea_pct": 0.122,
+                "wood_moisture": 0.523,
+            },
+        ),
+        FiberlineConfig(
+            id="semichem", name="Semichem", type="batch",
+            cooking_type="semichem", uses_gl_charge=True,
+            defaults={
+                "production_bdt_day": 636.854,
+                "yield_pct": 0.7019,
+                "ea_pct": 0.0365,
+                "gl_ea_pct": 0.017,
+                "wood_moisture": 0.461,
+            },
+        ),
+    ],
 
     # WL lab analysis
     'wl_tta': 117.449,
@@ -191,25 +214,6 @@ DEFAULTS = {
 
     # Cooking
     'cooking_wl_sulfidity': 0.283,
-
-    # ── Fiberline parameters ──
-    'semichem_yield_pct': 0.7019,   # D8
-    'pine_yield_pct': 0.5694,       # D34
-    'semichem_ea_pct': 0.0365,      # D12 — EA% on OD wood
-    'pine_ea_pct': 0.122,           # D38 — EA% on OD wood
-    'semichem_aa_pct': 0.0474,      # D13
-    'pine_aa_pct': 0.153,           # D39
-    'semichem_tta_pct': 0.0566,     # D14
-    'pine_tta_pct': 0.18,           # D40
-    'wood_moisture_semichem': 0.461,  # D10 — moisture fraction
-    'wood_moisture_pine': 0.523,      # D36
-    'liquor_wood_ratio': 3.3,        # D20/D46
-
-    # ── Semichem GL charge (3_Chem G5-G17) ──
-    # G13 = EA% charge from GL on OD wood (input)
-    # G7 = CALCULATED: (G11 × 907.185) / G9 where G11 = wood_OD × G13, G9 = GL EA g/L
-    # G5 = ((G7×1000)/24/60)/3.785 — GL flow to semichem digester (gpm)
-    'semichem_gl_ea_pct': 0.017,  # G13 — EA% from GL on OD wood for semichem
 
     # ── Slaker model ──
     'lime_charge_ratio': 0.85,      # B26 — molar CaO/Na2CO3 ratio

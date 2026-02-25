@@ -121,7 +121,7 @@ class TestWBLMixer:
     """Test WBL stream mixing with CTO brine."""
 
     @pytest.fixture
-    def mixed(self):
+    def bl_list(self):
         pine = calculate_fiberline_bl(
             production_bdt_day=1250.69, yield_pct=0.5694, wl_flow_gpm=500,
             wl_na2s_g_L=WL_NA2S, wl_naoh_g_L=WL_NAOH, wl_na2co3_g_L=WL_NA2CO3,
@@ -130,35 +130,23 @@ class TestWBLMixer:
             production_bdt_day=636.854, yield_pct=0.7019, wl_flow_gpm=100,
             wl_na2s_g_L=WL_NA2S, wl_naoh_g_L=WL_NAOH, wl_na2co3_g_L=WL_NA2CO3,
         )
+        return [pine, semichem]
+
+    @pytest.fixture
+    def mixed(self, bl_list):
         return mix_wbl_streams(
-            pine_bl=pine, semichem_bl=semichem,
+            bl_outputs=bl_list,
             cto_na_lb_hr=100.0, cto_s_lb_hr=50.0, cto_water_lb_hr=500.0,
         )
 
-    def test_na_conservation(self, mixed):
+    def test_na_conservation(self, bl_list, mixed):
         """Na in mixed = sum of all Na sources."""
-        pine = calculate_fiberline_bl(
-            production_bdt_day=1250.69, yield_pct=0.5694, wl_flow_gpm=500,
-            wl_na2s_g_L=WL_NA2S, wl_naoh_g_L=WL_NAOH, wl_na2co3_g_L=WL_NA2CO3,
-        )
-        semichem = calculate_fiberline_bl(
-            production_bdt_day=636.854, yield_pct=0.7019, wl_flow_gpm=100,
-            wl_na2s_g_L=WL_NA2S, wl_naoh_g_L=WL_NAOH, wl_na2co3_g_L=WL_NA2CO3,
-        )
-        expected_na = pine.na_element_lb_hr + semichem.na_element_lb_hr + 100.0
+        expected_na = sum(bl.na_element_lb_hr for bl in bl_list) + 100.0
         assert mixed.na_element_lb_hr == pytest.approx(expected_na, rel=1e-6)
 
-    def test_s_conservation(self, mixed):
+    def test_s_conservation(self, bl_list, mixed):
         """S in mixed = sum of all S sources."""
-        pine = calculate_fiberline_bl(
-            production_bdt_day=1250.69, yield_pct=0.5694, wl_flow_gpm=500,
-            wl_na2s_g_L=WL_NA2S, wl_naoh_g_L=WL_NAOH, wl_na2co3_g_L=WL_NA2CO3,
-        )
-        semichem = calculate_fiberline_bl(
-            production_bdt_day=636.854, yield_pct=0.7019, wl_flow_gpm=100,
-            wl_na2s_g_L=WL_NA2S, wl_naoh_g_L=WL_NAOH, wl_na2co3_g_L=WL_NA2CO3,
-        )
-        expected_s = pine.s_element_lb_hr + semichem.s_element_lb_hr + 50.0
+        expected_s = sum(bl.s_element_lb_hr for bl in bl_list) + 50.0
         assert mixed.s_element_lb_hr == pytest.approx(expected_s, rel=1e-6)
 
     def test_positive_tds(self, mixed):
@@ -167,16 +155,18 @@ class TestWBLMixer:
 
     def test_cto_adds_s(self):
         """Adding CTO S should increase S% d.s."""
-        pine = calculate_fiberline_bl(
-            production_bdt_day=1000, yield_pct=0.57, wl_flow_gpm=400,
-            wl_na2s_g_L=30, wl_naoh_g_L=60, wl_na2co3_g_L=20,
-        )
-        semichem = calculate_fiberline_bl(
-            production_bdt_day=600, yield_pct=0.70, wl_flow_gpm=80,
-            wl_na2s_g_L=30, wl_naoh_g_L=60, wl_na2co3_g_L=20,
-        )
-        mixed_no_cto = mix_wbl_streams(pine, semichem)
-        mixed_with_cto = mix_wbl_streams(pine, semichem, cto_s_lb_hr=200.0, cto_na_lb_hr=150.0)
+        bl_list = [
+            calculate_fiberline_bl(
+                production_bdt_day=1000, yield_pct=0.57, wl_flow_gpm=400,
+                wl_na2s_g_L=30, wl_naoh_g_L=60, wl_na2co3_g_L=20,
+            ),
+            calculate_fiberline_bl(
+                production_bdt_day=600, yield_pct=0.70, wl_flow_gpm=80,
+                wl_na2s_g_L=30, wl_naoh_g_L=60, wl_na2co3_g_L=20,
+            ),
+        ]
+        mixed_no_cto = mix_wbl_streams(bl_outputs=bl_list)
+        mixed_with_cto = mix_wbl_streams(bl_outputs=bl_list, cto_s_lb_hr=200.0, cto_na_lb_hr=150.0)
         assert mixed_with_cto.s_pct_ds > mixed_no_cto.s_pct_ds
 
 
@@ -185,15 +175,17 @@ class TestEvaporator:
 
     @pytest.fixture
     def wbl(self):
-        pine = calculate_fiberline_bl(
-            production_bdt_day=1250.69, yield_pct=0.5694, wl_flow_gpm=500,
-            wl_na2s_g_L=WL_NA2S, wl_naoh_g_L=WL_NAOH, wl_na2co3_g_L=WL_NA2CO3,
-        )
-        semichem = calculate_fiberline_bl(
-            production_bdt_day=636.854, yield_pct=0.7019, wl_flow_gpm=100,
-            wl_na2s_g_L=WL_NA2S, wl_naoh_g_L=WL_NAOH, wl_na2co3_g_L=WL_NA2CO3,
-        )
-        return mix_wbl_streams(pine, semichem)
+        bl_list = [
+            calculate_fiberline_bl(
+                production_bdt_day=1250.69, yield_pct=0.5694, wl_flow_gpm=500,
+                wl_na2s_g_L=WL_NA2S, wl_naoh_g_L=WL_NAOH, wl_na2co3_g_L=WL_NA2CO3,
+            ),
+            calculate_fiberline_bl(
+                production_bdt_day=636.854, yield_pct=0.7019, wl_flow_gpm=100,
+                wl_na2s_g_L=WL_NA2S, wl_naoh_g_L=WL_NAOH, wl_na2co3_g_L=WL_NA2CO3,
+            ),
+        ]
+        return mix_wbl_streams(bl_outputs=bl_list)
 
     def test_na_conservation(self, wbl):
         """Na must be exactly conserved through evaporation."""
@@ -323,10 +315,11 @@ class TestWBLMixerList:
         expected_na = sum(bl.na_element_lb_hr for bl in lines)
         assert abs(mixed.na_element_lb_hr - expected_na) < 0.01
 
-    def test_list_matches_named_params(self, bl_outputs):
-        """V2 list API must produce same results as V1 named-param API."""
-        mixed_list = mix_wbl_streams(bl_outputs=bl_outputs)
-        mixed_named = mix_wbl_streams(pine_bl=bl_outputs[0], semichem_bl=bl_outputs[1])
-        assert abs(mixed_list.na_element_lb_hr - mixed_named.na_element_lb_hr) < 0.01
-        assert abs(mixed_list.s_element_lb_hr - mixed_named.s_element_lb_hr) < 0.01
-        assert abs(mixed_list.tds_pct - mixed_named.tds_pct) < 0.001
+    def test_list_with_cto(self, bl_outputs):
+        """List API should correctly add CTO contributions."""
+        mixed_no_cto = mix_wbl_streams(bl_outputs=bl_outputs)
+        mixed_with_cto = mix_wbl_streams(
+            bl_outputs=bl_outputs, cto_s_lb_hr=100.0, cto_na_lb_hr=80.0,
+        )
+        assert mixed_with_cto.s_element_lb_hr > mixed_no_cto.s_element_lb_hr
+        assert mixed_with_cto.na_element_lb_hr > mixed_no_cto.na_element_lb_hr

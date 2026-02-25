@@ -15,7 +15,7 @@ from app.engine.s_retention import calculate_s_losses_detailed, SLossBreakdown
 inputs = {}
 results = run_calculations(inputs)
 
-total_prod = DEFAULTS['batch_production_bdt_day'] + DEFAULTS['cont_production_bdt_day']
+total_prod = sum(fl.production_bdt_day for fl in DEFAULTS['fiberlines'])
 saltcake_flow = DEFAULTS['saltcake_flow_lb_hr']
 
 print("=" * 80)

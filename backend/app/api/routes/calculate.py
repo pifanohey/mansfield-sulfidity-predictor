@@ -131,10 +131,6 @@ def _build_response(results: Dict[str, Any], inputs: Dict[str, Any]) -> Calculat
         ),
         forward_leg=ForwardLegOutput(
             fiberline_bl=fiberline_bl_list,
-            pine_bl_organics_lb_hr=results.get('pine_bl_organics_lb_hr', 0),
-            pine_bl_inorganic_solids_lb_hr=results.get('pine_bl_inorganic_solids_lb_hr', 0),
-            semichem_bl_organics_lb_hr=results.get('semichem_bl_organics_lb_hr', 0),
-            semichem_bl_inorganic_solids_lb_hr=results.get('semichem_bl_inorganic_solids_lb_hr', 0),
             cto_na_lb_hr=results.get('cto_na_lb_hr', 0),
             cto_s_lbs_hr=results.get('cto_s_lbs_hr', 0),
             wbl_total_flow_lb_hr=results.get('wbl_total_flow_lb_hr', 0),

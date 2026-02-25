@@ -74,8 +74,8 @@ class FiberlineInput(BaseModel):
 
 class CalculationRequest(BaseModel):
     """Complete calculation request matching all Excel inputs."""
-    # Dynamic fiberline inputs (preferred over flat fields)
-    fiberlines: Optional[List[FiberlineInput]] = None
+    # Dynamic fiberline inputs (required)
+    fiberlines: List[FiberlineInput]
 
     # Tank levels
     tank_levels: Optional[TankLevels] = None
@@ -93,19 +93,8 @@ class CalculationRequest(BaseModel):
     # Recovery boiler
     recovery_boiler: Optional[RecoveryBoilerInputs] = None
 
-    # Production
-    batch_production_bdt_day: float = 636.854
-    cont_production_bdt_day: float = 1250.69
+    # Cooking
     cooking_wl_sulfidity: float = 0.283
-
-    # Fiberline parameters (Excel 3_Chem D8, D34, D12, D38)
-    semichem_yield_pct: float = 0.7019
-    pine_yield_pct: float = 0.5694
-    semichem_ea_pct: float = 0.0365
-    pine_ea_pct: float = 0.122
-
-    # Semichem GL charge (Excel 3_Chem G5-G17)
-    semichem_gl_ea_pct: float = 0.017
 
     # Dissolving tank inputs (Excel 2_RB I43-I75)
     ww_flow_gpm: float = 625.0
@@ -164,26 +153,25 @@ class CalculationRequest(BaseModel):
         d: Dict[str, Any] = {}
 
         # Dynamic fiberline inputs → FiberlineConfig objects for the engine
-        if self.fiberlines:
-            from ..engine.mill_profile import FiberlineConfig, get_mill_config
-            mill = get_mill_config()
-            configs = []
-            for fl_input in self.fiberlines:
-                mill_fl = next((mfl for mfl in mill.fiberlines if mfl.id == fl_input.id), None)
-                if mill_fl:
-                    defaults = dict(mill_fl.defaults)
-                    defaults["production_bdt_day"] = fl_input.production_bdt_day
-                    defaults["yield_pct"] = fl_input.yield_pct
-                    defaults["ea_pct"] = fl_input.ea_pct
-                    if fl_input.gl_ea_pct is not None:
-                        defaults["gl_ea_pct"] = fl_input.gl_ea_pct
-                    configs.append(FiberlineConfig(
-                        id=mill_fl.id, name=mill_fl.name, type=mill_fl.type,
-                        cooking_type=mill_fl.cooking_type,
-                        uses_gl_charge=mill_fl.uses_gl_charge,
-                        defaults=defaults,
-                    ))
-            d['fiberlines'] = configs
+        from ..engine.mill_profile import FiberlineConfig, get_mill_config
+        mill = get_mill_config()
+        configs = []
+        for fl_input in self.fiberlines:
+            mill_fl = next((mfl for mfl in mill.fiberlines if mfl.id == fl_input.id), None)
+            if mill_fl:
+                defaults = dict(mill_fl.defaults)
+                defaults["production_bdt_day"] = fl_input.production_bdt_day
+                defaults["yield_pct"] = fl_input.yield_pct
+                defaults["ea_pct"] = fl_input.ea_pct
+                if fl_input.gl_ea_pct is not None:
+                    defaults["gl_ea_pct"] = fl_input.gl_ea_pct
+                configs.append(FiberlineConfig(
+                    id=mill_fl.id, name=mill_fl.name, type=mill_fl.type,
+                    cooking_type=mill_fl.cooking_type,
+                    uses_gl_charge=mill_fl.uses_gl_charge,
+                    defaults=defaults,
+                ))
+        d['fiberlines'] = configs
 
         # Tank levels
         if self.tank_levels:
@@ -216,17 +204,8 @@ class CalculationRequest(BaseModel):
             d['ash_recycled_pct'] = rb.ash_recycled_pct
             d['saltcake_flow_lb_hr'] = rb.saltcake_flow_lb_hr
 
-        # Production
-        d['batch_production_bdt_day'] = self.batch_production_bdt_day
-        d['cont_production_bdt_day'] = self.cont_production_bdt_day
+        # Cooking
         d['cooking_wl_sulfidity'] = self.cooking_wl_sulfidity
-
-        # Fiberline
-        d['semichem_yield_pct'] = self.semichem_yield_pct
-        d['pine_yield_pct'] = self.pine_yield_pct
-        d['semichem_ea_pct'] = self.semichem_ea_pct
-        d['pine_ea_pct'] = self.pine_ea_pct
-        d['semichem_gl_ea_pct'] = self.semichem_gl_ea_pct
 
         # Dissolving tank
         d['ww_flow_gpm'] = self.ww_flow_gpm
@@ -418,12 +397,6 @@ class ForwardLegOutput(BaseModel):
     """Forward leg BL composition from fiberlines to recovery boiler."""
     # Dynamic per-fiberline results
     fiberline_bl: List[FiberlineBLResult] = Field(default_factory=list)
-    # Pine fiberline (backward compat)
-    pine_bl_organics_lb_hr: float = 0.0
-    pine_bl_inorganic_solids_lb_hr: float = 0.0
-    # Semichem fiberline
-    semichem_bl_organics_lb_hr: float = 0.0
-    semichem_bl_inorganic_solids_lb_hr: float = 0.0
     # CTO
     cto_na_lb_hr: float = 0.0
     cto_s_lbs_hr: float = 0.0
