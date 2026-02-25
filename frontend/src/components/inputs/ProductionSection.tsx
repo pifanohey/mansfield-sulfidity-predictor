@@ -1,14 +1,7 @@
 "use client";
 
 import InputField from "./InputField";
-import type { FiberlineConfig } from "@/lib/types";
-
-export interface FiberlineInputState {
-  production_bdt_day?: number;
-  yield_pct?: number;
-  ea_pct?: number;
-  gl_ea_pct?: number;
-}
+import type { FiberlineConfig, FiberlineInputState } from "@/lib/types";
 
 interface Props {
   fiberlines: FiberlineConfig[];

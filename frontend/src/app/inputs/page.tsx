@@ -85,7 +85,7 @@ export default function InputsPage() {
     runCalculation,
   } = useAppState();
 
-  const { config, loading: configLoading } = useMillConfig();
+  const { config, loading: configLoading, error: configError } = useMillConfig();
 
   // Push loaded mill config into app state
   useEffect(() => {
@@ -159,6 +159,12 @@ export default function InputsPage() {
         {configLoading && (
           <div className="mb-4 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2 font-mono text-[10px] text-muted-foreground">
             Loading mill configuration...
+          </div>
+        )}
+
+        {configError && (
+          <div className="mb-4 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 font-mono text-[10px] text-amber-400">
+            Using fallback configuration — could not load mill config from server.
           </div>
         )}
 

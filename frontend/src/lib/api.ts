@@ -101,13 +101,6 @@ export async function deleteSnapshot(id: number): Promise<void> {
   await request(`/snapshots/${id}`, { method: "DELETE" });
 }
 
-export async function getMillConfig(
-  millId = "pine_hill"
-): Promise<MillConfig> {
-  return request<MillConfig>(`/mills/${millId}/config`);
-}
-
-/** Fetch V2 mill config (fiberlines, makeup_chemical, defaults) */
 export async function fetchMillConfig(): Promise<MillConfig> {
   return request<MillConfig>("/mill-config");
 }

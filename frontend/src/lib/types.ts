@@ -342,6 +342,13 @@ export interface TrendPoint {
   notes: string;
 }
 
+export interface FiberlineInputState {
+  production_bdt_day?: number;
+  yield_pct?: number;
+  ea_pct?: number;
+  gl_ea_pct?: number;
+}
+
 export interface FiberlineConfig {
   id: string;
   name: string;

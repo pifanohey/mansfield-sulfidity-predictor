@@ -7,8 +7,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import type { CalculationRequest, CalculationResponse, MillConfig } from "@/lib/types";
-import type { FiberlineInputState } from "@/components/inputs/ProductionSection";
+import type { CalculationRequest, CalculationResponse, MillConfig, FiberlineInputState } from "@/lib/types";
 import { DEFAULT_INPUTS } from "@/lib/defaults";
 import { calculate } from "@/lib/api";
 
