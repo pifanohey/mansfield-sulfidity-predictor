@@ -63,8 +63,20 @@ class LossTable(BaseModel):
     unaccounted: LossTableSource = LossTableSource(s_lb_bdt=0.0, na_lb_bdt=0.0)
 
 
+class FiberlineInput(BaseModel):
+    """Per-fiberline inputs from the frontend."""
+    id: str
+    production_bdt_day: float
+    yield_pct: float
+    ea_pct: float
+    gl_ea_pct: Optional[float] = None
+
+
 class CalculationRequest(BaseModel):
     """Complete calculation request matching all Excel inputs."""
+    # Dynamic fiberline inputs (preferred over flat fields)
+    fiberlines: Optional[List[FiberlineInput]] = None
+
     # Tank levels
     tank_levels: Optional[TankLevels] = None
 
@@ -150,6 +162,28 @@ class CalculationRequest(BaseModel):
     def to_engine_inputs(self) -> Dict[str, Any]:
         """Convert API request to engine input dict."""
         d: Dict[str, Any] = {}
+
+        # Dynamic fiberline inputs → FiberlineConfig objects for the engine
+        if self.fiberlines:
+            from ..engine.mill_profile import FiberlineConfig, get_mill_config
+            mill = get_mill_config()
+            configs = []
+            for fl_input in self.fiberlines:
+                mill_fl = next((mfl for mfl in mill.fiberlines if mfl.id == fl_input.id), None)
+                if mill_fl:
+                    defaults = dict(mill_fl.defaults)
+                    defaults["production_bdt_day"] = fl_input.production_bdt_day
+                    defaults["yield_pct"] = fl_input.yield_pct
+                    defaults["ea_pct"] = fl_input.ea_pct
+                    if fl_input.gl_ea_pct is not None:
+                        defaults["gl_ea_pct"] = fl_input.gl_ea_pct
+                    configs.append(FiberlineConfig(
+                        id=mill_fl.id, name=mill_fl.name, type=mill_fl.type,
+                        cooking_type=mill_fl.cooking_type,
+                        uses_gl_charge=mill_fl.uses_gl_charge,
+                        defaults=defaults,
+                    ))
+            d['fiberlines'] = configs
 
         # Tank levels
         if self.tank_levels:
@@ -372,9 +406,19 @@ class WLQualityOutput(BaseModel):
     wl_demand_gpm: float = 0.0
 
 
+class FiberlineBLResult(BaseModel):
+    """Per-fiberline BL output in the forward leg."""
+    id: str
+    name: str
+    organics_lb_hr: float = 0.0
+    inorganic_solids_lb_hr: float = 0.0
+
+
 class ForwardLegOutput(BaseModel):
     """Forward leg BL composition from fiberlines to recovery boiler."""
-    # Pine fiberline
+    # Dynamic per-fiberline results
+    fiberline_bl: List[FiberlineBLResult] = Field(default_factory=list)
+    # Pine fiberline (backward compat)
     pine_bl_organics_lb_hr: float = 0.0
     pine_bl_inorganic_solids_lb_hr: float = 0.0
     # Semichem fiberline
@@ -483,7 +527,7 @@ class ExportRequest(BaseModel):
     inputs: CalculationRequest
     results: CalculationResponse
     sensitivity_items: Optional[List[SensitivityItem]] = None
-    mill_name: str = "Pine Hill Mill"
+    mill_name: str = "Mill"  # Will be set from config
 
 
 class MillConfigResponse(BaseModel):

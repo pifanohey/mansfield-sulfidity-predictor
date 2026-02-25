@@ -11,12 +11,13 @@ from ..schemas import (
     SensitivityResponse, SensitivityItem,
     SulfidityOutput, MakeupOutput, RecoveryBoilerOutput,
     InventoryOutput, MassBalanceOutput, GuidanceItemOutput,
-    WLQualityOutput, ForwardLegOutput,
+    WLQualityOutput, ForwardLegOutput, FiberlineBLResult,
     UnitOperationRow, LossDetailRow, ChemicalAdditionRow,
 )
 from ...engine.orchestrator import run_calculations
 from ...engine.guidance import generate_guidance
 from ...engine.sensitivity import run_sensitivity_analysis
+from ...engine.mill_profile import get_mill_config
 
 router = APIRouter(prefix="/api", tags=["calculate"])
 
@@ -32,6 +33,33 @@ def _build_response(results: Dict[str, Any], inputs: Dict[str, Any]) -> Calculat
     final_aa_gL = results.get('final_wl_aa_g_L', 0)
     final_ea_gL = results.get('final_wl_ea_g_L', 0)
     final_na2s_gL = results.get('final_wl_na2s_g_L', 0)
+
+    # Build per-fiberline BL results from dynamic engine keys
+    fiberline_bl_list: list = []
+    fiberline_ids = results.get('fiberline_ids', [])
+    if fiberline_ids:
+        try:
+            mill_cfg = get_mill_config()
+            fl_name_map = {fl.id: fl.name for fl in mill_cfg.fiberlines}
+        except Exception:
+            fl_name_map = {}
+        for fl_id in fiberline_ids:
+            fiberline_bl_list.append(FiberlineBLResult(
+                id=fl_id,
+                name=fl_name_map.get(fl_id, fl_id),
+                organics_lb_hr=results.get(f'{fl_id}_bl_organics_lb_hr', 0.0),
+                inorganic_solids_lb_hr=results.get(f'{fl_id}_bl_inorganic_solids_lb_hr', 0.0),
+            ))
+
+    # Build per-fiberline intermediate keys
+    per_fl_intermediates: dict = {}
+    for fl_id in fiberline_ids:
+        wl_key = f'{fl_id}_wl_demand_gpm'
+        gl_key = f'{fl_id}_gl_gpm'
+        if wl_key in results:
+            per_fl_intermediates[wl_key] = results[wl_key]
+        if gl_key in results:
+            per_fl_intermediates[gl_key] = results[gl_key]
 
     return CalculationResponse(
         status='converged' if results.get('solver_converged', True) else 'not_converged',
@@ -102,6 +130,7 @@ def _build_response(results: Dict[str, Any], inputs: Dict[str, Any]) -> Calculat
             wl_demand_gpm=results.get('total_wl_demand_gpm', 0),
         ),
         forward_leg=ForwardLegOutput(
+            fiberline_bl=fiberline_bl_list,
             pine_bl_organics_lb_hr=results.get('pine_bl_organics_lb_hr', 0),
             pine_bl_inorganic_solids_lb_hr=results.get('pine_bl_inorganic_solids_lb_hr', 0),
             semichem_bl_organics_lb_hr=results.get('semichem_bl_organics_lb_hr', 0),
@@ -177,6 +206,7 @@ def _build_response(results: Dict[str, Any], inputs: Dict[str, Any]) -> Calculat
             'final_wl_naoh_g_L': results.get('final_wl_naoh_g_L', 0),
             'final_wl_na2co3_g_L': results.get('final_wl_na2co3_g_L', 0),
             'dissolving_tank_flow': results.get('dissolving_tank_flow', 0),
+            **per_fl_intermediates,
         },
         unit_operations=[
             UnitOperationRow(**row)
@@ -270,3 +300,26 @@ def calculate_sensitivity(request: CalculationRequest):
             outputs=r.outputs,
         ) for r in results
     ])
+
+
+@router.get("/mill-config")
+async def get_config():
+    """Return mill configuration including fiberlines, tanks, and defaults."""
+    config = get_mill_config()
+    return {
+        "mill_name": config.mill_name,
+        "makeup_chemical": config.makeup_chemical,
+        "fiberlines": [
+            {
+                "id": fl.id,
+                "name": fl.name,
+                "type": fl.type,
+                "cooking_type": fl.cooking_type,
+                "uses_gl_charge": fl.uses_gl_charge,
+                "defaults": fl.defaults,
+            }
+            for fl in config.fiberlines
+        ],
+        "tanks": config.tanks,
+        "defaults": config.defaults,
+    }
