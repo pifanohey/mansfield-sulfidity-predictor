@@ -1,0 +1,207 @@
+{
+  "mill_name": "Mansfield",
+  "makeup_chemical": "nash",
+  "fiberlines": [
+    {
+      "id": "kraft_pine1",
+      "name": "Kraft Pine #1 (Continuous)",
+      "type": "continuous",
+      "cooking_type": "chemical",
+      "uses_gl_charge": false,
+      "defaults": {
+        "production_bdt_day": 1421.0,
+        "yield_pct": 0.5672,
+        "ea_pct": 0.142,
+        "wood_moisture": 0.50
+      }
+    },
+    {
+      "id": "kraft_pine2",
+      "name": "Kraft Pine #2 (Continuous)",
+      "type": "continuous",
+      "cooking_type": "chemical",
+      "uses_gl_charge": false,
+      "defaults": {
+        "production_bdt_day": 411.0,
+        "yield_pct": 0.5777,
+        "ea_pct": 0.1359,
+        "wood_moisture": 0.50
+      }
+    },
+    {
+      "id": "semichem",
+      "name": "Semichem HW (Continuous)",
+      "type": "continuous",
+      "cooking_type": "semichem",
+      "uses_gl_charge": true,
+      "defaults": {
+        "production_bdt_day": 783.0,
+        "yield_pct": 0.72,
+        "ea_pct": 0.0385,
+        "gl_ea_pct": 0.0385,
+        "gl_wl_ratio": 1.529,
+        "wood_moisture": 0.50
+      }
+    }
+  ],
+  "recovery_boilers": [
+    {
+      "id": "rb1",
+      "name": "Recovery Boiler #1",
+      "paired_dt_id": "dt1",
+      "defaults": {
+        "bl_flow_gpm": 243.6,
+        "bl_tds_pct": 72.0,
+        "bl_temp_f": 276.0,
+        "reduction_eff_pct": 83.7,
+        "ash_recycled_pct": 0.07,
+        "saltcake_flow_lb_hr": 0.0
+      }
+    },
+    {
+      "id": "rb2",
+      "name": "Recovery Boiler #2",
+      "paired_dt_id": "dt2",
+      "defaults": {
+        "bl_flow_gpm": 243.6,
+        "bl_tds_pct": 72.0,
+        "bl_temp_f": 276.0,
+        "reduction_eff_pct": 81.4,
+        "ash_recycled_pct": 0.07,
+        "saltcake_flow_lb_hr": 0.0
+      }
+    }
+  ],
+  "dissolving_tanks": [
+    {
+      "id": "dt1",
+      "name": "Dissolving Tank #1",
+      "paired_rb_id": "rb1",
+      "defaults": {
+        "ww_flow_gpm": 387.0,
+        "ww_tta_lb_ft3": 1.15,
+        "ww_sulfidity": 0.2953,
+        "shower_flow_gpm": 79.0,
+        "smelt_density_lb_ft3": 102.77
+      }
+    },
+    {
+      "id": "dt2",
+      "name": "Dissolving Tank #2",
+      "paired_rb_id": "rb2",
+      "defaults": {
+        "ww_flow_gpm": 387.0,
+        "ww_tta_lb_ft3": 1.15,
+        "ww_sulfidity": 0.2953,
+        "shower_flow_gpm": 79.0,
+        "smelt_density_lb_ft3": 102.77
+      }
+    }
+  ],
+  "tanks": [],
+  "defaults": {
+    "target_sulfidity_pct": 25.8,
+    "reduction_efficiency_pct": 83.7,
+    "causticity_pct": 81.0,
+
+    "nash_concentration": 0.40,
+    "naoh_concentration": 0.50,
+    "nash_density": 1.29,
+    "naoh_density": 1.52,
+
+    "bl_na_pct": 19.8,
+    "bl_s_pct": 4.84,
+    "bl_k_pct": 0.71,
+
+    "bl_flow_gpm": 487.2,
+    "bl_tds_pct": 72.0,
+    "bl_temp_f": 276.0,
+
+    "ash_recycled_pct": 0.07,
+    "saltcake_flow_lb_hr": 0.0,
+
+    "wl_tta": 133.10,
+    "wl_ea": 95.30,
+    "wl_aa": 112.44,
+
+    "gl_tta": 132.94,
+    "gl_ea": 26.91,
+    "gl_aa": 43.25,
+
+    "ww_flow_gpm": 774.0,
+    "ww_tta_lb_ft3": 1.15,
+    "ww_sulfidity": 0.2953,
+    "shower_flow_gpm": 158.0,
+    "smelt_density_lb_ft3": 102.77,
+    "gl_target_tta_lb_ft3": 8.3,
+    "gl_causticity": 0.1016,
+
+    "smelt_temp_f": 1338.0,
+    "ww_temp_f": 180.0,
+    "shower_temp_f": 140.0,
+    "dt_operating_temp_f": 212.0,
+    "smelt_cp_btu_lb_f": 0.223,
+    "latent_heat_212_btu_lb": 970.0,
+
+    "cto_h2so4_per_ton": 391.0,
+    "cto_tpd": 117.5,
+    "cto_naoh_per_ton": 193.0,
+
+    "cooking_wl_sulfidity": 0.258,
+
+    "liquor_wood_ratio": 3.3,
+
+    "lime_charge_ratio": 0.85,
+    "cao_in_lime_pct": 87.53,
+    "caco3_in_lime_pct": 1.96,
+    "inerts_in_lime_pct": 9.46,
+    "grits_loss_pct": 1.0,
+    "lime_temp_f": 1100.0,
+    "slaker_temp_f": 210.5,
+    "gl_temp_f": 189.0,
+
+    "wlc_underflow_solids_pct": 0.4097,
+    "wlc_mud_density": 1.33,
+    "intrusion_water_gpm": 28.0,
+    "dilution_water_gpm": 23.856,
+
+    "dregs_lb_bdt": 8.158,
+    "glc_underflow_solids_pct": 0.077,
+    "grits_lb_bdt": 8.53,
+    "grits_solids_pct": 0.40,
+
+    "s_loss_digester_pct": 0.0,
+    "target_sbl_tds_pct": 72.0,
+
+    "loss_pulp_washable_soda_s": 3.0,
+    "loss_pulp_washable_soda_na": 18.5,
+    "loss_pulp_bound_soda_s": 0.0,
+    "loss_pulp_bound_soda_na": 7.4,
+    "loss_pulp_mill_spills_s": 0.0,
+    "loss_pulp_mill_spills_na": 0.3,
+    "loss_evap_spill_s": 2.4,
+    "loss_evap_spill_na": 5.2,
+    "loss_rb_ash_s": 1.3,
+    "loss_rb_ash_na": 2.8,
+    "loss_rb_stack_s": 0.3,
+    "loss_rb_stack_na": 0.8,
+    "loss_dregs_filter_s": 0.4,
+    "loss_dregs_filter_na": 2.4,
+    "loss_grits_s": 0.2,
+    "loss_grits_na": 1.5,
+    "loss_weak_wash_overflow_s": 0.1,
+    "loss_weak_wash_overflow_na": 0.7,
+    "loss_ncg_s": 8.5,
+    "loss_ncg_na": 1.0,
+    "loss_recaust_spill_s": 0.4,
+    "loss_recaust_spill_na": 2.2,
+    "loss_rb_dump_tank_s": 0.0,
+    "loss_rb_dump_tank_na": 0.0,
+    "loss_kiln_scrubber_s": 0.0,
+    "loss_kiln_scrubber_na": 0.0,
+    "loss_truck_out_gl_s": 0.0,
+    "loss_truck_out_gl_na": 0.0,
+    "loss_unaccounted_s": 0.0,
+    "loss_unaccounted_na": 0.0
+  }
+}

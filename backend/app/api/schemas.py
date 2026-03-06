@@ -40,6 +40,27 @@ class RecoveryBoilerInputs(BaseModel):
     saltcake_flow_lb_hr: float = 2227.0
 
 
+class RecoveryBoilerConfigInput(BaseModel):
+    """Per-RB inputs from the frontend."""
+    id: str
+    bl_flow_gpm: Optional[float] = None
+    bl_tds_pct: Optional[float] = None
+    bl_temp_f: Optional[float] = None
+    reduction_eff_pct: Optional[float] = None
+    ash_recycled_pct: Optional[float] = None
+    saltcake_flow_lb_hr: Optional[float] = None
+
+
+class DissolvingTankInput(BaseModel):
+    """Per-DT inputs from the frontend."""
+    id: str
+    ww_flow_gpm: Optional[float] = None
+    ww_tta_lb_ft3: Optional[float] = None
+    ww_sulfidity: Optional[float] = None
+    shower_flow_gpm: Optional[float] = None
+    smelt_density_lb_ft3: Optional[float] = None
+
+
 class LossTableSource(BaseModel):
     """A single loss source with S and Na2O values (lb/BDT)."""
     s_lb_bdt: float = 0.0
@@ -59,6 +80,8 @@ class LossTable(BaseModel):
     weak_wash_overflow: LossTableSource = LossTableSource(s_lb_bdt=0.1, na_lb_bdt=0.7)
     ncg: LossTableSource = LossTableSource(s_lb_bdt=8.5, na_lb_bdt=1.0)
     recaust_spill: LossTableSource = LossTableSource(s_lb_bdt=0.4, na_lb_bdt=2.2)
+    rb_dump_tank: LossTableSource = LossTableSource(s_lb_bdt=0.0, na_lb_bdt=0.0)
+    kiln_scrubber: LossTableSource = LossTableSource(s_lb_bdt=0.0, na_lb_bdt=0.0)
     truck_out_gl: LossTableSource = LossTableSource(s_lb_bdt=0.0, na_lb_bdt=0.0)
     unaccounted: LossTableSource = LossTableSource(s_lb_bdt=0.0, na_lb_bdt=0.0)
 
@@ -90,8 +113,12 @@ class CalculationRequest(BaseModel):
     bl_k_pct: float = 1.58
     bl_tank_properties: Optional[BLTankProperties] = None
 
-    # Recovery boiler
+    # Recovery boiler (legacy single-RB)
     recovery_boiler: Optional[RecoveryBoilerInputs] = None
+
+    # Multi-RB / Multi-DT (V2 — overrides single-RB when present)
+    recovery_boilers: Optional[List[RecoveryBoilerConfigInput]] = None
+    dissolving_tanks: Optional[List[DissolvingTankInput]] = None
 
     # Cooking
     cooking_wl_sulfidity: float = 0.283
@@ -130,6 +157,7 @@ class CalculationRequest(BaseModel):
     # CTO
     cto_h2so4_per_ton: float = 398.0
     cto_tpd: float = 60.0
+    cto_naoh_per_ton: float = 0.0  # lb NaOH/ton CTO (Na returns via brine)
 
     # Setpoints
     target_sulfidity_pct: float = 29.4
@@ -241,6 +269,7 @@ class CalculationRequest(BaseModel):
         # CTO
         d['cto_h2so4_per_ton'] = self.cto_h2so4_per_ton
         d['cto_tpd'] = self.cto_tpd
+        d['cto_naoh_per_ton'] = self.cto_naoh_per_ton
 
         # Setpoints
         d['target_sulfidity_pct'] = self.target_sulfidity_pct
@@ -258,12 +287,54 @@ class CalculationRequest(BaseModel):
                 'pulp_washable_soda', 'pulp_bound_soda', 'pulp_mill_spills',
                 'evap_spill', 'rb_ash', 'rb_stack',
                 'dregs_filter', 'grits', 'weak_wash_overflow',
-                'ncg', 'recaust_spill', 'truck_out_gl', 'unaccounted',
+                'ncg', 'recaust_spill', 'rb_dump_tank', 'kiln_scrubber',
+                'truck_out_gl', 'unaccounted',
             ]
             for source_key in _LOSS_TABLE_KEYS:
                 src: LossTableSource = getattr(lt, source_key)
                 d[f'loss_{source_key}_s'] = src.s_lb_bdt
                 d[f'loss_{source_key}_na'] = src.na_lb_bdt
+
+        # Multi-RB config: merge user overrides with mill config defaults
+        if self.recovery_boilers:
+            from ..engine.mill_profile import RecoveryBoilerConfig
+            rb_configs = []
+            for rb_input in self.recovery_boilers:
+                mill_rb = next((mrb for mrb in mill.recovery_boilers if mrb.id == rb_input.id), None)
+                base_defaults = dict(mill_rb.defaults) if mill_rb else {}
+                # Apply user overrides
+                for fld in ['bl_flow_gpm', 'bl_tds_pct', 'bl_temp_f',
+                            'reduction_eff_pct', 'ash_recycled_pct', 'saltcake_flow_lb_hr']:
+                    val = getattr(rb_input, fld, None)
+                    if val is not None:
+                        base_defaults[fld] = val
+                rb_configs.append(RecoveryBoilerConfig(
+                    id=rb_input.id,
+                    name=mill_rb.name if mill_rb else rb_input.id,
+                    paired_dt_id=mill_rb.paired_dt_id if mill_rb else '',
+                    defaults=base_defaults,
+                ))
+            d['recovery_boilers'] = rb_configs
+
+        # Multi-DT config
+        if self.dissolving_tanks:
+            from ..engine.mill_profile import DissolvingTankConfig
+            dt_configs = []
+            for dt_input in self.dissolving_tanks:
+                mill_dt = next((mdt for mdt in mill.dissolving_tanks if mdt.id == dt_input.id), None)
+                base_defaults = dict(mill_dt.defaults) if mill_dt else {}
+                for fld in ['ww_flow_gpm', 'ww_tta_lb_ft3', 'ww_sulfidity',
+                            'shower_flow_gpm', 'smelt_density_lb_ft3']:
+                    val = getattr(dt_input, fld, None)
+                    if val is not None:
+                        base_defaults[fld] = val
+                dt_configs.append(DissolvingTankConfig(
+                    id=dt_input.id,
+                    name=mill_dt.name if mill_dt else dt_input.id,
+                    paired_rb_id=mill_dt.paired_rb_id if mill_dt else '',
+                    defaults=base_defaults,
+                ))
+            d['dissolving_tanks'] = dt_configs
 
         # Overrides
         if self.s_deficit_lbs_hr is not None:
@@ -506,8 +577,12 @@ class ExportRequest(BaseModel):
 class MillConfigResponse(BaseModel):
     mill_id: str
     mill_name: str
-    tanks: Dict[str, Any]
-    defaults: Dict[str, Any]
+    makeup_chemical: str = "nash"
+    fiberlines: List[Dict[str, Any]] = Field(default_factory=list)
+    recovery_boilers: List[Dict[str, Any]] = Field(default_factory=list)
+    dissolving_tanks: List[Dict[str, Any]] = Field(default_factory=list)
+    tanks: Dict[str, Any] = Field(default_factory=dict)
+    defaults: Dict[str, Any] = Field(default_factory=dict)
 
 
 class TrendPointCreate(BaseModel):

@@ -34,6 +34,35 @@
       }
     }
   ],
+  "recovery_boilers": [
+    {
+      "id": "rb1",
+      "name": "Recovery Boiler",
+      "paired_dt_id": "dt1",
+      "defaults": {
+        "bl_flow_gpm": 340.53,
+        "bl_tds_pct": 69.1,
+        "bl_temp_f": 253.5,
+        "reduction_eff_pct": 95.0,
+        "ash_recycled_pct": 0.07,
+        "saltcake_flow_lb_hr": 2227.0
+      }
+    }
+  ],
+  "dissolving_tanks": [
+    {
+      "id": "dt1",
+      "name": "Dissolving Tank",
+      "paired_rb_id": "rb1",
+      "defaults": {
+        "ww_flow_gpm": 625.0,
+        "ww_tta_lb_ft3": 1.07978,
+        "ww_sulfidity": 0.2550,
+        "shower_flow_gpm": 60.0,
+        "smelt_density_lb_ft3": 110.0
+      }
+    }
+  ],
   "tanks": [
     {
       "id": "wlc_1",
@@ -237,6 +266,10 @@
     "loss_ncg_na": 1.0,
     "loss_recaust_spill_s": 0.4,
     "loss_recaust_spill_na": 2.2,
+    "loss_rb_dump_tank_s": 0.0,
+    "loss_rb_dump_tank_na": 0.0,
+    "loss_kiln_scrubber_s": 0.0,
+    "loss_kiln_scrubber_na": 0.0,
     "loss_truck_out_gl_s": 0.0,
     "loss_truck_out_gl_na": 0.0,
     "loss_unaccounted_s": 0.0,

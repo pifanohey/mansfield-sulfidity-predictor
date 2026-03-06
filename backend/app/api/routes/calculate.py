@@ -300,7 +300,7 @@ def calculate_sensitivity(request: CalculationRequest):
 
 @router.get("/mill-config")
 async def get_config():
-    """Return mill configuration including fiberlines, tanks, and defaults."""
+    """Return mill configuration including fiberlines, RBs, DTs, tanks, and defaults."""
     config = get_mill_config()
     return {
         "mill_name": config.mill_name,
@@ -315,6 +315,24 @@ async def get_config():
                 "defaults": fl.defaults,
             }
             for fl in config.fiberlines
+        ],
+        "recovery_boilers": [
+            {
+                "id": rb.id,
+                "name": rb.name,
+                "paired_dt_id": rb.paired_dt_id,
+                "defaults": rb.defaults,
+            }
+            for rb in config.recovery_boilers
+        ],
+        "dissolving_tanks": [
+            {
+                "id": dt.id,
+                "name": dt.name,
+                "paired_rb_id": dt.paired_rb_id,
+                "defaults": dt.defaults,
+            }
+            for dt in config.dissolving_tanks
         ],
         "tanks": config.tanks,
         "defaults": config.defaults,

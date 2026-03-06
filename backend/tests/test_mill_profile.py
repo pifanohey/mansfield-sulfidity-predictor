@@ -250,8 +250,12 @@ class TestRecoveryBoilerConfig:
         assert cfg.recovery_boilers == []
         assert cfg.dissolving_tanks == []
 
-    def test_pine_hill_has_empty_rb_dt(self):
-        """Pine Hill JSON has no RB/DT arrays — should load as empty lists."""
+    def test_pine_hill_has_rb_dt(self):
+        """Pine Hill JSON has 1 RB and 1 DT."""
         cfg = load_mill_config("pine_hill")
-        assert cfg.recovery_boilers == []
-        assert cfg.dissolving_tanks == []
+        assert len(cfg.recovery_boilers) == 1
+        assert cfg.recovery_boilers[0].id == "rb1"
+        assert cfg.recovery_boilers[0].paired_dt_id == "dt1"
+        assert len(cfg.dissolving_tanks) == 1
+        assert cfg.dissolving_tanks[0].id == "dt1"
+        assert cfg.dissolving_tanks[0].paired_rb_id == "rb1"
