@@ -227,11 +227,14 @@ export default function InputsPage() {
           </AccordionItem>
 
           <AccordionItem value="rb">
-            <AccordionTrigger>Recovery Boiler</AccordionTrigger>
+            <AccordionTrigger>
+              Recovery Boiler{millConfig && millConfig.recovery_boilers?.length > 1 ? `s (${millConfig.recovery_boilers.length})` : ""}
+            </AccordionTrigger>
             <AccordionContent>
               <RecoveryBoilerSection
                 rb={inputs.recovery_boiler ?? DEFAULT_RB_INPUTS}
                 onChange={(k, v) => updateNestedField("recovery_boiler", k, v)}
+                rbConfigs={millConfig?.recovery_boilers}
               />
             </AccordionContent>
           </AccordionItem>
@@ -263,7 +266,9 @@ export default function InputsPage() {
           </AccordionItem>
 
           <AccordionItem value="dissolving">
-            <AccordionTrigger>Dissolving Tank / Weak Wash</AccordionTrigger>
+            <AccordionTrigger>
+              Dissolving Tank{millConfig && millConfig.dissolving_tanks?.length > 1 ? `s (${millConfig.dissolving_tanks.length})` : ""} / Weak Wash
+            </AccordionTrigger>
             <AccordionContent>
               <DissolvingTankSection
                 wwFlow={inputs.ww_flow_gpm}
@@ -274,6 +279,7 @@ export default function InputsPage() {
                 glTargetTtaLbFt3={inputs.gl_target_tta_lb_ft3}
                 glCausticity={inputs.gl_causticity}
                 onChange={(k, v) => updateField(k as keyof typeof inputs, v as never)}
+                dtConfigs={millConfig?.dissolving_tanks}
               />
             </AccordionContent>
           </AccordionItem>

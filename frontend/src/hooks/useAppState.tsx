@@ -98,6 +98,22 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
             : undefined,
         }));
         inp = { ...inp, fiberlines };
+
+        // Multi-RB: send per-RB configs when mill has multiple recovery boilers
+        if (millConfig.recovery_boilers?.length > 1) {
+          const recovery_boilers = millConfig.recovery_boilers.map((rb) => ({
+            id: rb.id,
+          }));
+          inp = { ...inp, recovery_boilers };
+        }
+
+        // Multi-DT: send per-DT configs when mill has multiple dissolving tanks
+        if (millConfig.dissolving_tanks?.length > 1) {
+          const dissolving_tanks = millConfig.dissolving_tanks.map((dt) => ({
+            id: dt.id,
+          }));
+          inp = { ...inp, dissolving_tanks };
+        }
       }
 
       setLoading(true);

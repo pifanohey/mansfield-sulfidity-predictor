@@ -18,6 +18,8 @@ const LOSS_ROWS: Array<{
   { key: "weak_wash_overflow", label: "Weak Wash Overflow", area: "Recausticizing" },
   { key: "ncg", label: "NCG", area: "NCG System" },
   { key: "recaust_spill", label: "Recaust Spill", area: "Recausticizing" },
+  { key: "rb_dump_tank", label: "RB Dump Tank", area: "Recovery Boiler" },
+  { key: "kiln_scrubber", label: "Kiln Scrubber", area: "Lime Kiln" },
   { key: "truck_out_gl", label: "Truck Out Green Liquor", area: "Other" },
   { key: "unaccounted", label: "Unaccounted", area: "Other" },
 ];

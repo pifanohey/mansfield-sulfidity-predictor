@@ -45,8 +45,29 @@ export interface LossTable {
   weak_wash_overflow: LossTableSource;
   ncg: LossTableSource;
   recaust_spill: LossTableSource;
+  rb_dump_tank: LossTableSource;
+  kiln_scrubber: LossTableSource;
   truck_out_gl: LossTableSource;
   unaccounted: LossTableSource;
+}
+
+export interface RecoveryBoilerConfigInput {
+  id: string;
+  bl_flow_gpm?: number;
+  bl_tds_pct?: number;
+  bl_temp_f?: number;
+  reduction_eff_pct?: number;
+  ash_recycled_pct?: number;
+  saltcake_flow_lb_hr?: number;
+}
+
+export interface DissolvingTankConfigInput {
+  id: string;
+  ww_flow_gpm?: number;
+  ww_tta_lb_ft3?: number;
+  ww_sulfidity?: number;
+  shower_flow_gpm?: number;
+  smelt_density_lb_ft3?: number;
 }
 
 export interface CalculationRequest {
@@ -57,6 +78,9 @@ export interface CalculationRequest {
   bl_s_pct: number;
   bl_k_pct: number;
   recovery_boiler?: RecoveryBoilerInputs;
+  // Multi-RB / Multi-DT (V2 — overrides single-RB when present)
+  recovery_boilers?: RecoveryBoilerConfigInput[];
+  dissolving_tanks?: DissolvingTankConfigInput[];
   cooking_wl_sulfidity: number;
   // V2: Config-driven fiberline inputs (required)
   fiberlines: Array<{
@@ -96,6 +120,7 @@ export interface CalculationRequest {
   // CTO
   cto_h2so4_per_ton: number;
   cto_tpd: number;
+  cto_naoh_per_ton?: number;
   // Setpoints
   target_sulfidity_pct: number;
   // Makeup
@@ -358,10 +383,26 @@ export interface FiberlineConfig {
   };
 }
 
+export interface RecoveryBoilerConfig {
+  id: string;
+  name: string;
+  paired_dt_id: string;
+  defaults: Record<string, number>;
+}
+
+export interface DissolvingTankConfig {
+  id: string;
+  name: string;
+  paired_rb_id: string;
+  defaults: Record<string, number>;
+}
+
 export interface MillConfig {
   mill_name: string;
   makeup_chemical: "nash" | "saltcake" | "emulsified_sulfur" | "naoh";
   fiberlines: FiberlineConfig[];
+  recovery_boilers: RecoveryBoilerConfig[];
+  dissolving_tanks: DissolvingTankConfig[];
   tanks: Record<string, unknown>[];
   defaults: Record<string, number>;
 }

@@ -1,9 +1,9 @@
 # Sulfidity Predictor V2 — Multi-Mill Architecture
 
 ## What This Is
-A web-based chemical engineering tool for Kraft pulp mills that predicts white liquor sulfidity and calculates makeup chemical requirements. V2 extends V1 with **configurable N-fiberline support** and **multiple makeup chemical types**, enabling deployment to any mill via JSON config files.
+A web-based chemical engineering tool for Kraft pulp mills that predicts white liquor sulfidity and calculates makeup chemical requirements. V2 extends V1 with **configurable N-fiberline support**, **multiple recovery boilers/dissolving tanks**, and **multiple makeup chemical types**, enabling deployment to any mill via JSON config files.
 
-**V2 vs V1:** V1 hardcoded Pine Hill's 2-fiberline setup. V2 loops over a configurable list of fiberlines loaded from JSON. The core solver math is identical — V2 only changes the parameterization layer.
+**V2 vs V1:** V1 hardcoded Pine Hill's 2-fiberline, single-RB setup. V2 loops over configurable lists of fiberlines, recovery boilers, and dissolving tanks loaded from JSON. The core solver math is identical — V2 only changes the parameterization layer.
 
 ---
 
@@ -20,7 +20,7 @@ cd frontend && npm run dev    # port 3005
 
 ## Running Tests
 ```bash
-cd backend && python3 -m pytest tests/ -v    # 215 tests, ALL passing
+cd backend && python3 -m pytest tests/ -v    # 249 tests, ALL passing
 ```
 
 ---
@@ -29,14 +29,15 @@ cd backend && python3 -m pytest tests/ -v    # 215 tests, ALL passing
 ```
 /sulfidity_predictor_v2/
 ├── mill_configs/                   # ★ V2: JSON config per mill
-│   ├── pine_hill.json              #   2 fiberlines, NaSH makeup
+│   ├── pine_hill.json              #   2 fiberlines, 1 RB/DT, NaSH makeup
+│   ├── mansfield.json              #   3 fiberlines, 2 RBs/DTs, NaSH makeup
 │   ├── three_line_chemical.json    #   3 fiberlines, saltcake makeup
 │   └── two_batch.json              #   2 batch lines, NaOH makeup
 ├── backend/
 │   ├── app/
 │   │   ├── engine/                 # 19 calculation modules
-│   │   │   ├── orchestrator.py     #   Master solver, triple-loop
-│   │   │   ├── mill_profile.py     #   ★ V2: FiberlineConfig/MillConfig loader
+│   │   │   ├── orchestrator.py     #   Master solver, triple-loop + multi-RB loop
+│   │   │   ├── mill_profile.py     #   ★ V2: FiberlineConfig/RB/DT/MillConfig loader
 │   │   │   ├── makeup_chemicals.py #   ★ V2: 4 chemical type configs
 │   │   │   ├── chemical_charge.py  #   Fiberline WL demand (loops over configs)
 │   │   │   ├── fiberline.py        #   BL composition (list-based mixer)
@@ -44,9 +45,9 @@ cd backend && python3 -m pytest tests/ -v    # 215 tests, ALL passing
 │   │   │   ├── dissolving_tank.py  #   Smelt dissolution, WW flow solve
 │   │   │   ├── slaker_model.py     #   Energy/water/mass balance
 │   │   │   ├── makeup.py           #   NaSH/NaOH sizing (Secant method)
-│   │   │   ├── s_retention.py      #   Unified loss table, S retention
+│   │   │   ├── s_retention.py      #   Unified loss table (15 sources), S retention
 │   │   │   ├── evaporator.py       #   WBL → SBL concentration
-│   │   │   ├── constants.py        #   MW, CONV, DEFAULTS (includes fiberlines)
+│   │   │   ├── constants.py        #   MW, CONV, DEFAULTS (includes fiberlines, RB/DT)
 │   │   │   ├── density.py          #   BL/GL/WL density correlations
 │   │   │   ├── mill_config.py      #   Tank geometry (13 tanks)
 │   │   │   ├── inventory.py        #   Tank volumes from lab
@@ -54,11 +55,11 @@ cd backend && python3 -m pytest tests/ -v    # 215 tests, ALL passing
 │   │   │   ├── guidance.py         #   Rule-based recommendations
 │   │   │   └── sensitivity.py      #   Auto-perturbation analysis
 │   │   ├── api/
-│   │   │   ├── schemas.py          #   Pydantic models (FiberlineInput, etc.)
+│   │   │   ├── schemas.py          #   Pydantic models (FiberlineInput, RB/DT, etc.)
 │   │   │   └── routes/calculate.py #   REST endpoints + GET /api/mill-config
 │   │   ├── reports/                #   PDF & Excel export
 │   │   └── main.py                 #   FastAPI entry point
-│   └── tests/                      #   215 tests (10 test files)
+│   └── tests/                      #   249 tests (12 test files)
 ├── frontend/                       #   Next.js 15 + React 18 + TypeScript
 │   └── src/
 │       ├── app/                    #   Pages: dashboard, inputs, results, scenarios
@@ -83,30 +84,26 @@ Each mill is defined by a JSON file in `mill_configs/`. The active config is sel
   "makeup_chemical": "nash",
   "fiberlines": [
     {
-      "id": "pine",
-      "name": "Pine",
-      "type": "continuous",
-      "cooking_type": "chemical",
-      "uses_gl_charge": false,
-      "defaults": {
-        "production_bdt_day": 1250.69,
-        "yield_pct": 0.5694,
-        "ea_pct": 0.122,
-        "wood_moisture": 0.523
-      }
-    },
+      "id": "pine", "name": "Pine", "type": "continuous",
+      "cooking_type": "chemical", "uses_gl_charge": false,
+      "defaults": { "production_bdt_day": 1250.69, "yield_pct": 0.5694, "ea_pct": 0.122 }
+    }
+  ],
+  "recovery_boilers": [
     {
-      "id": "semichem",
-      "name": "Semichem",
-      "type": "batch",
-      "cooking_type": "semichem",
-      "uses_gl_charge": true,
+      "id": "rb1", "name": "Recovery Boiler", "paired_dt_id": "dt1",
       "defaults": {
-        "production_bdt_day": 636.854,
-        "yield_pct": 0.7019,
-        "ea_pct": 0.0365,
-        "gl_ea_pct": 0.017,
-        "wood_moisture": 0.461
+        "bl_flow_gpm": 340.53, "bl_tds_pct": 69.1, "bl_temp_f": 253.5,
+        "reduction_eff_pct": 95.0, "ash_recycled_pct": 0.07, "saltcake_flow_lb_hr": 2227.0
+      }
+    }
+  ],
+  "dissolving_tanks": [
+    {
+      "id": "dt1", "name": "Dissolving Tank", "paired_rb_id": "rb1",
+      "defaults": {
+        "ww_flow_gpm": 625.0, "ww_tta_lb_ft3": 1.07978, "ww_sulfidity": 0.2550,
+        "shower_flow_gpm": 60.0, "smelt_density_lb_ft3": 110.0
       }
     }
   ],
@@ -117,7 +114,9 @@ Each mill is defined by a JSON file in `mill_configs/`. The active config is sel
 
 ### Key Dataclasses (`mill_profile.py`)
 - **`FiberlineConfig`**: `id, name, type, cooking_type, uses_gl_charge, defaults`
-- **`MillConfig`**: `mill_name, makeup_chemical, fiberlines, tanks, defaults`
+- **`RecoveryBoilerConfig`**: `id, name, paired_dt_id, defaults`
+- **`DissolvingTankConfig`**: `id, name, paired_rb_id, defaults`
+- **`MillConfig`**: `mill_name, makeup_chemical, fiberlines, recovery_boilers, dissolving_tanks, tanks, defaults`
 - `load_mill_config(mill_id)` — loads from `mill_configs/{mill_id}.json`
 - `get_mill_config()` — reads `MILL_CONFIG` env var
 
@@ -139,27 +138,76 @@ Each mill is defined by a JSON file in `mill_configs/`. The active config is sel
 
 ---
 
+## Multi-Recovery Boiler / Dissolving Tank Architecture
+
+### How Multi-RB Works
+The orchestrator loops over N recovery boilers, each with independent parameters:
+```
+for rb in rb_configs:
+  rb_bl_flow = rb.defaults['bl_flow_gpm']
+  rb_re = rb.defaults['reduction_eff_pct']
+  flow_fraction = rb_bl_flow / total_bl_flow
+  rb_prod = total_prod * flow_fraction
+  rb_smelt = calculate_recovery_boiler(rb_prod, rb_bl_flow, rb_re, ...)
+  per_rb_results.append(rb_smelt)
+
+combined_rb, combined_smelt = _combine_smelts(per_rb_smelt_list, per_rb_inputs_list)
+```
+
+### Key Helpers (`orchestrator.py`)
+- **`_combine_smelts(smelt_list, rb_inputs_list)`**: Sums extensive fields (tta, active_sulfide, dry_solids), recomputes intensive (smelt_sulfidity_pct = total_active/total_tta, bl_s_pct_fired weighted by dry_solids). Single-item → identity pass-through.
+- **`_combine_dt_inputs(dt_configs, overrides, global_defaults)`**: Sums flows (ww_flow, shower_flow), flow-weighted avg for concentrations (ww_tta, ww_sulfidity, smelt_density). Empty/single → returns global defaults.
+
+### Production Splitting
+Each RB gets a proportional share of total production based on BL flow fraction:
+```python
+flow_fraction = rb_bl_flow / total_bl_flow
+rb_prod = total_prod * flow_fraction
+```
+
+### Per-RB Results
+When multiple RBs are configured, per-RB breakdown is included in results:
+```python
+results['recovery_boiler_ids'] = ['rb1', 'rb2']
+results['rb1_smelt_sulfidity_pct'] = 35.2
+results['rb2_smelt_sulfidity_pct'] = 33.8
+results['rb1_production_bdt_day'] = 1308.0
+results['rb2_production_bdt_day'] = 1307.0
+```
+
+### Override Precedence
+1. User flat inputs (e.g., `reduction_eff_pct` at request level) → override ALL per-RB config defaults
+2. Per-RB config defaults from JSON → used when no flat override
+3. `constants.py` DEFAULTS → final fallback
+
+---
+
 ## Engine Flow (How Fiberlines Are Processed)
 
 ### Orchestrator Loop
 ```
 run_calculations(inputs):
   fiberline_configs = inputs['fiberlines']   # List[FiberlineConfig]
+  rb_configs = inputs['recovery_boilers']    # List[RecoveryBoilerConfig]
+  dt_configs = inputs['dissolving_tanks']    # List[DissolvingTankConfig]
   total_prod = sum(fl.production_bdt_day for fl in fiberline_configs)
 
   OUTER LOOP (BL convergence):
     SECANT LOOP (NaSH targeting):
       INNER LOOP (GL flow convergence):
-        dissolving_tank → slaker → WLC Stage 1
+        combine_dt_inputs → dissolving_tank → slaker → WLC Stage 1
         → chemical_charge(fiberlines=fiberline_configs, ...)
         → Na loss factor → WLC Stage 2
         → GL convergence check
 
+      MULTI-RB LOOP:
+        for rb in rb_configs:
+          calculate_recovery_boiler(rb_prod, rb_params, ...)
+        combine_smelts → s_retention
+
     FORWARD LEG:
       for fl in fiberline_configs:
         bl_outputs[fl.id] = calculate_fiberline_bl(fl.production, fl.yield, ...)
-        if fl.uses_gl_charge:
-          add GL to fiberline inputs
 
       mixed_wbl = mix_wbl_streams(list(bl_outputs.values()), cto_...)
       evaporator → SBL → BL convergence check
@@ -192,13 +240,15 @@ class ChemicalChargeResults:
 
 ### Dynamic Result Keys
 
-The orchestrator produces per-fiberline result keys:
+The orchestrator produces per-fiberline and per-RB result keys:
 ```python
-results['fiberline_ids'] = ['pine', 'semichem']   # list of IDs processed
+results['fiberline_ids'] = ['pine', 'semichem']
 results['pine_wl_demand_gpm'] = 342.5
 results['semichem_wl_demand_gpm'] = 93.2
-results['pine_bl_organics_lb_hr'] = 5200.0
-results['semichem_bl_organics_lb_hr'] = 2100.0
+
+results['recovery_boiler_ids'] = ['rb1', 'rb2']
+results['rb1_smelt_sulfidity_pct'] = 35.2
+results['rb2_smelt_sulfidity_pct'] = 33.8
 ```
 
 ---
@@ -208,23 +258,35 @@ results['semichem_bl_organics_lb_hr'] = 2100.0
 ## V2-Specific Endpoints
 
 ### `GET /api/mill-config`
-Returns the active mill configuration (fiberlines, tanks, defaults, makeup_chemical).
+Returns the active mill configuration (fiberlines, recovery_boilers, dissolving_tanks, tanks, defaults, makeup_chemical).
 
 ### `POST /api/calculate`
-**V2 request body** includes `fiberlines` array:
+**V2 request body** includes `fiberlines` array and optional multi-RB/DT:
 ```json
 {
   "fiberlines": [
     {"id": "pine", "production_bdt_day": 1250.69, "yield_pct": 0.5694, "ea_pct": 0.122},
     {"id": "semichem", "production_bdt_day": 636.854, "yield_pct": 0.7019, "ea_pct": 0.0365, "gl_ea_pct": 0.017}
   ],
+  "recovery_boilers": [
+    {"id": "rb1", "bl_flow_gpm": 243.6},
+    {"id": "rb2", "bl_flow_gpm": 243.6}
+  ],
+  "dissolving_tanks": [
+    {"id": "dt1"},
+    {"id": "dt2"}
+  ],
+  "cto_naoh_per_ton": 193.0,
   "cooking_wl_sulfidity": 0.283,
   "bl_na_pct": 19.39,
   ...
 }
 ```
 
-Backend schema: `FiberlineInput(id, production_bdt_day, yield_pct, ea_pct, gl_ea_pct?)`
+Backend schemas:
+- `FiberlineInput(id, production_bdt_day, yield_pct, ea_pct, gl_ea_pct?)`
+- `RecoveryBoilerConfigInput(id, bl_flow_gpm?, bl_tds_pct?, bl_temp_f?, reduction_eff_pct?, ash_recycled_pct?, saltcake_flow_lb_hr?)` — Optional fields override mill config defaults
+- `DissolvingTankInput(id, ww_flow_gpm?, ww_tta_lb_ft3?, ww_sulfidity?, shower_flow_gpm?, smelt_density_lb_ft3?)` — Optional fields override mill config defaults
 
 ### Other Endpoints (unchanged from V1)
 - `POST /api/calculate/what-if` — scenario comparison
@@ -238,9 +300,9 @@ Backend schema: `FiberlineInput(id, production_bdt_day, yield_pct, ea_pct, gl_ea
 
 # FRONTEND (V2 Changes)
 
-## Config-Driven Fiberline Inputs
+## Config-Driven Inputs
 
-The frontend loads mill config via `GET /api/mill-config` and dynamically renders fiberline inputs.
+The frontend loads mill config via `GET /api/mill-config` and dynamically renders fiberline, RB, and DT inputs.
 
 ### Key Hook: `useMillConfig`
 ```typescript
@@ -251,47 +313,44 @@ const { config, loading, error } = useMillConfig();
 
 ### State Management (`useAppState`)
 ```typescript
-// New V2 state:
+// V2 state:
 millConfig: MillConfig | null
 fiberlineInputs: Record<string, FiberlineInputState>  // keyed by fiberline id
 updateFiberlineField(fiberlineId, key, value)
 setMillConfig(config)
 
-// runCalculation builds fiberlines array from config + user overrides:
+// runCalculation builds fiberlines + multi-RB/DT arrays from config:
 const fiberlines = millConfig.fiberlines.map(fl => ({
   id: fl.id,
   production_bdt_day: fiberlineInputs[fl.id]?.production_bdt_day ?? fl.defaults.production_bdt_day,
   ...
 }));
-```
-
-### ProductionSection (config-driven loop)
-```tsx
-{fiberlines.map(fl => (
-  <div key={fl.id}>
-    <h4>{fl.name} ({fl.type} / {fl.cooking_type})</h4>
-    <InputField label="Production" value={...} />
-    <InputField label="Yield" value={...} />
-    <InputField label="EA Charge" value={...} />
-    {fl.uses_gl_charge && <InputField label="GL EA" value={...} />}
-  </div>
-))}
+// Multi-RB/DT: sends per-RB/DT config IDs when mill has >1
+if (millConfig.recovery_boilers.length > 1) {
+  inp.recovery_boilers = millConfig.recovery_boilers.map(rb => ({ id: rb.id }));
+}
 ```
 
 ### TypeScript Types
 ```typescript
 interface FiberlineConfig { id, name, type, cooking_type, uses_gl_charge, defaults }
-interface FiberlineInputState { production_bdt_day?, yield_pct?, ea_pct?, gl_ea_pct? }
-interface MillConfig { mill_name, makeup_chemical, fiberlines[], tanks[], defaults }
+interface RecoveryBoilerConfig { id, name, paired_dt_id, defaults }
+interface DissolvingTankConfig { id, name, paired_rb_id, defaults }
+interface MillConfig { mill_name, makeup_chemical, fiberlines[], recovery_boilers[], dissolving_tanks[], tanks[], defaults }
+interface RecoveryBoilerConfigInput { id, bl_flow_gpm?, bl_tds_pct?, ... }  // API request per-RB overrides
+interface DissolvingTankConfigInput { id, ww_flow_gpm?, ww_tta_lb_ft3?, ... }  // API request per-DT overrides
 ```
 
-### Default Inputs (`defaults.ts`)
-Uses `fiberlines` array (not flat fields):
-```typescript
-fiberlines: [
-  { id: "pine", production_bdt_day: 1250.69, yield_pct: 0.5694, ea_pct: 0.122 },
-  { id: "semichem", production_bdt_day: 636.854, yield_pct: 0.7019, ea_pct: 0.0365, gl_ea_pct: 0.017 },
-]
+### Multi-RB/DT UI Behavior
+- **Single RB/DT (Pine Hill)**: Standard flat input fields, no change from V1
+- **Multi-RB/DT (Mansfield)**: Shows info banner + global input fields + per-RB/DT config summary cards with defaults from JSON
+
+### Loss Table (15 sources)
+Frontend `LossTable` type and `LossTableSection` include all 15 loss sources:
+```
+pulp_washable_soda, pulp_bound_soda, pulp_mill_spills, evap_spill,
+rb_ash, rb_stack, dregs_filter, grits, weak_wash_overflow, ncg,
+recaust_spill, rb_dump_tank, kiln_scrubber, truck_out_gl, unaccounted
 ```
 
 ---
@@ -319,6 +378,14 @@ NaOH = max(NaOH_for_losses, NaOH_for_EA_demand)
 ```
 - **Losses constraint**: Na mass balance (Saltcake_Na + NaSH_Na + NaOH_Na = Total_Na_losses)
 - **EA demand constraint**: If CE < 81%, NaOH compensates EA deficit
+
+## CTO NaOH Na Return
+Mills that add NaOH in tall oil acidulation return Na to the system via brine:
+```python
+cto_naoh_per_ton  # lb NaOH/ton CTO (0 for Pine Hill, 193 for Mansfield)
+cto_na_return = cto_tpd * cto_naoh_per_ton * NaOH_TO_Na / 24
+```
+This Na is added to the WBL mixer alongside CTO acid Na.
 
 ## Key Design Decisions (unchanged from V1)
 - **NO NCG subtraction in fiberline** — WL Na₂S already reflects steady-state losses
@@ -354,11 +421,25 @@ NaOH = max(NaOH_for_losses, NaOH_for_EA_demand)
 | NaSH Dry | ~1,207 lb/hr |
 | NaOH Dry | ~2,228 lb/hr |
 
+## Mansfield Parameters
+| Parameter | Value |
+|-----------|-------|
+| BL Flow | 487.2 gpm (2 × 243.6) |
+| BL TDS | 72.0% |
+| Total Production | 2,615 BDT/day (3 fiberlines) |
+| Recovery Boilers | 2 (RE: 83.7%, 81.4%) |
+| Dissolving Tanks | 2 (387 gpm WW each) |
+| Target Sulfidity | 25.8% |
+| Final Sulfidity | 25.80% |
+| NaSH Dry | ~3,140 lb/hr |
+| NaOH Dry | ~3,777 lb/hr |
+| CTO NaOH | 193 lb/ton (Na returns via brine) |
+
 ---
 
 # TESTING
 
-## Test Coverage (215 tests)
+## Test Coverage (249 tests)
 | File | Count | Purpose |
 |------|-------|---------|
 | `test_validation_vs_excel.py` | 33 | Cell-by-cell Excel v4 validation |
@@ -371,6 +452,14 @@ NaOH = max(NaOH_for_losses, NaOH_for_EA_demand)
 | `test_makeup_chemicals.py` | 12 | 4 chemical configs, MW consistency |
 | `test_chemical_charge_multi.py` | 14 | Multi-fiberline chemical charge |
 | `test_multi_mill_configs.py` | 16 | Integration: 3 mill configs |
+| `test_combine_rb_dt.py` | 10 | `_combine_smelts()` + `_combine_dt_inputs()` |
+| `test_multi_rb_dt_integration.py` | 20 | **Multi-RB/DT end-to-end** |
+
+### Multi-RB/DT Integration Tests
+- **SingleRBBackwardCompat**: Legacy flat inputs ≡ explicit single-item RB/DT config
+- **MansfieldMultiRB**: 2 RBs, 2 DTs, 3 fiberlines — converges, per-RB results present
+- **HalfCapacityEquivalence**: Two half-capacity RBs ≈ one full-capacity RB
+- **AsymmetricRBs**: Different RE values → correct blended smelt sulfidity
 
 ## Golden Regression Gate
 `test_golden_regression.py` verifies 12 critical output keys against a V1 snapshot (`golden_snapshot_pine_hill.json`):
@@ -396,10 +485,12 @@ Tolerance: 0.01% relative error. **Must pass after every change.**
 
 # ADDING A NEW MILL
 
-1. Create `mill_configs/your_mill.json` with fiberlines, tanks, defaults
+1. Create `mill_configs/your_mill.json` with fiberlines, recovery_boilers, dissolving_tanks, tanks, defaults
 2. Set `MILL_CONFIG=your_mill` env var
 3. Deploy — the frontend auto-loads config from `GET /api/mill-config`
-4. Non-fiberline parameters (BL, RB, DT, losses, etc.) come from JSON `defaults` or fall back to `constants.py` DEFAULTS
+4. Non-fiberline parameters (BL, losses, etc.) come from JSON `defaults` or fall back to `constants.py` DEFAULTS
+5. For multi-RB mills: define each RB with `paired_dt_id` and each DT with `paired_rb_id`
+6. For CTO NaOH return: set `cto_naoh_per_ton` in defaults (0 if no NaOH added in tall oil plant)
 
 ---
 
@@ -420,4 +511,4 @@ Tolerance: 0.01% relative error. **Must pass after every change.**
 
 ---
 
-*Sulfidity Predictor v2.0 — Multi-Mill Architecture*
+*Sulfidity Predictor v2.0 — Multi-Mill, Multi-RB/DT Architecture*

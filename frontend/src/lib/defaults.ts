@@ -50,6 +50,8 @@ export const DEFAULT_LOSS_TABLE: LossTable = {
   weak_wash_overflow: { s_lb_bdt: 0.1, na_lb_bdt: 0.7 },
   ncg: { s_lb_bdt: 8.5, na_lb_bdt: 1.0 },
   recaust_spill: { s_lb_bdt: 0.4, na_lb_bdt: 2.2 },
+  rb_dump_tank: { s_lb_bdt: 0.0, na_lb_bdt: 0.0 },
+  kiln_scrubber: { s_lb_bdt: 0.0, na_lb_bdt: 0.0 },
   truck_out_gl: { s_lb_bdt: 0.0, na_lb_bdt: 0.0 },
   unaccounted: { s_lb_bdt: 0.0, na_lb_bdt: 0.0 },
 };
