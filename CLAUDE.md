@@ -343,7 +343,11 @@ interface DissolvingTankConfigInput { id, ww_flow_gpm?, ww_tta_lb_ft3?, ... }  /
 
 ### Multi-RB/DT UI Behavior
 - **Single RB/DT (Pine Hill)**: Standard flat input fields, no change from V1
-- **Multi-RB/DT (Mansfield)**: Shows info banner + global input fields + per-RB/DT config summary cards with defaults from JSON
+- **Multi-RB/DT (Mansfield)**: Per-RB/DT bordered cards with independently editable fields (BL Flow, TDS, Temp, RE, Ash, Saltcake for RBs; WW Flow, TTA, Sulfidity, Shower, Smelt Density for DTs). State managed via `rbInputs` and `dtInputs` in `useAppState`.
+
+### Dynamic Mill Name
+- `TopNav.tsx` and `Sidebar.tsx` read `mill_name` from `useMillConfig()` — no hardcoded mill names
+- Initials in top-right avatar derived from mill name
 
 ### Loss Table (15 sources)
 Frontend `LossTable` type and `LossTableSection` include all 15 loss sources:
@@ -427,13 +431,14 @@ This Na is added to the WBL mixer alongside CTO acid Na.
 | BL Flow | 487.2 gpm (2 × 243.6) |
 | BL TDS | 72.0% |
 | Total Production | 2,615 BDT/day (3 fiberlines) |
+| Fiberlines | kraft_pine1 (1421 BDT), kraft_pine2 (411 BDT), semichem (783 BDT) |
 | Recovery Boilers | 2 (RE: 83.7%, 81.4%) |
 | Dissolving Tanks | 2 (387 gpm WW each) |
 | Target Sulfidity | 25.8% |
-| Final Sulfidity | 25.80% |
-| NaSH Dry | ~3,140 lb/hr |
-| NaOH Dry | ~3,777 lb/hr |
+| Expected NaSH Dry | ~1,762 lb/hr (~15.87 lb/BDT) |
 | CTO NaOH | 193 lb/ton (Na returns via brine) |
+| Semichem GL EA% | 1.61% (gl_ea_pct: 0.0161) |
+| Semichem WL EA% | 3.85% (ea_pct: 0.0385) |
 
 ---
 
@@ -508,6 +513,29 @@ Tolerance: 0.01% relative error. **Must pass after every change.**
 | CE flow-dependent washable soda | ~5.5 lb NaOH/hr per 1% CE |
 | CTO delta fix | Correct sulfidity impact |
 | Latent sulfidity fix | Strong BL uses s_ret_strong |
+
+# V2 DEPLOYMENT FIXES
+
+| Fix | Impact |
+|-----|--------|
+| Mansfield gl_ea_pct | Was 0.0385 (same as ea_pct), corrected to 0.0161 → GL charge 276.8→115.5 gpm |
+| Dynamic mill name in nav | TopNav/Sidebar read from useMillConfig() instead of hardcoded "Pine Hill" |
+| Dynamic BL composition chart | BLCompositionChart loops fiberline_bl array instead of hardcoded 'pine'/'semichem' IDs |
+| Per-RB/DT editable fields | Multi-RB/DT cards with independent inputs (not read-only summaries) |
+| GL sulfidity display | Uses gl_sulfidity_pct (Na₂O-based) not gl_sulfidity×100 (raw fraction) |
+| Dynamic fiberline WL bars | RecaustFlowDiagram reads fiberline_ids from intermediate dict |
+| Mill config defaults | applyMillDefaults() maps JSON defaults to frontend state with g/L→lb/ft³ conversion |
+| intermediate dict typing | Changed from Record<string, number> to Record<string, any> for mixed types |
+
+---
+
+# DEPLOYMENT
+
+## Mansfield (Independent from Pine Hill V1)
+- **GitHub**: `pifanohey/mansfield-sulfidity-predictor`
+- **Render**: `mansfield-sulfidity-backend` with `MILL_CONFIG=mansfield`
+- **Vercel**: Frontend with `API_URL` pointing to Render backend
+- **Pine Hill V1**: Completely separate repo/deployment, untouched
 
 ---
 
