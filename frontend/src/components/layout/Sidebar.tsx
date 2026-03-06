@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useMillConfig } from "@/hooks/useMillConfig";
 import {
   LayoutDashboard,
   SlidersHorizontal,
@@ -19,6 +20,7 @@ const NAV = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { config } = useMillConfig();
 
   return (
     <aside className="flex h-screen w-56 flex-col border-r bg-card">
@@ -48,7 +50,7 @@ export default function Sidebar() {
         })}
       </nav>
       <div className="border-t p-4 text-xs text-muted-foreground">
-        Pine Hill Mill v1.0
+        {config?.mill_name ?? "Mill"} v2.0
       </div>
     </aside>
   );

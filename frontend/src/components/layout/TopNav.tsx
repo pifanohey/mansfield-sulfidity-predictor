@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useMillConfig } from "@/hooks/useMillConfig";
 import {
   LayoutDashboard,
   SlidersHorizontal,
@@ -20,6 +21,9 @@ const NAV = [
 
 export default function TopNav() {
   const pathname = usePathname();
+  const { config } = useMillConfig();
+  const millName = config?.mill_name ?? "Mill";
+  const initials = millName.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 
   return (
     <header className="sticky top-0 z-50 flex h-14 items-center justify-between border-b border-white/[0.06] bg-background/95 px-6 backdrop-blur-sm">
@@ -61,14 +65,14 @@ export default function TopNav() {
       {/* Right Side */}
       <div className="flex items-center gap-3">
         <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-          Pine Hill Mill
+          {millName} Mill
         </span>
         <div className="h-4 w-px bg-white/10" />
         <button className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-white">
           <Settings className="h-4 w-4" />
         </button>
         <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
-          PH
+          {initials}
         </div>
       </div>
     </header>

@@ -118,16 +118,12 @@ function MergeArrows() {
 }
 
 export default function BLCompositionChart({ data }: Props) {
-  const pineFL = data.fiberline_bl?.find(fl => fl.id === 'pine');
-  const semicchemFL = data.fiberline_bl?.find(fl => fl.id === 'semichem');
-  const pineTotal = (pineFL?.organics_lb_hr ?? 0) + (pineFL?.inorganic_solids_lb_hr ?? 0);
-  const semicchemTotal = (semicchemFL?.organics_lb_hr ?? 0) + (semicchemFL?.inorganic_solids_lb_hr ?? 0);
-
+  const fiberlines = data.fiberline_bl ?? [];
   const ops = data.unit_operations || [];
-  const pineBL = ops.find(o => o.stage.includes('Pine'));
-  const semicchemBL = ops.find(o => o.stage.includes('Semichem'));
   const mixedWBL = ops.find(o => o.stage.includes('Mixed'));
   const rbSmelt = ops.find(o => o.stage.includes('Recovery'));
+
+  const FL_COLORS: BoxColor[] = ["green", "blue", "purple", "red"];
 
   return (
     <Card>
@@ -141,22 +137,29 @@ export default function BLCompositionChart({ data }: Props) {
         <div className="overflow-x-auto">
           <div className="min-w-[700px]">
 
-            {/* Row 1: Fiberlines (sources) */}
-            <div className="grid grid-cols-3 gap-4 mb-2">
-              <ProcessBox title={pineFL?.name ?? "Pine Fiberline"} color="green">
-                <DataRow label="Organics" value={pineFL?.organics_lb_hr ?? 0} unit="lb/hr" />
-                <DataRow label="Inorganics" value={pineFL?.inorganic_solids_lb_hr ?? 0} unit="lb/hr" />
-                <div className="border-t border-emerald-500/20 my-1" />
-                <DataRow label="Total Solids" value={pineTotal} unit="lb/hr" highlight />
-                {pineBL && (
-                  <>
-                    <DataRow label="Na element" value={pineBL.na_lb_hr} unit="lb/hr" />
-                    <DataRow label="S element" value={pineBL.s_lb_hr} unit="lb/hr" />
-                    {pineBL.na_pct_ds && <DataRow label="Na % d.s." value={`${pineBL.na_pct_ds.toFixed(2)}%`} />}
-                    {pineBL.s_pct_ds && <DataRow label="S % d.s." value={`${pineBL.s_pct_ds.toFixed(2)}%`} />}
-                  </>
-                )}
-              </ProcessBox>
+            {/* Row 1: Fiberlines + CTO (sources) */}
+            <div className={`grid gap-4 mb-2`} style={{ gridTemplateColumns: `repeat(${fiberlines.length + 1}, minmax(0, 1fr))` }}>
+              {fiberlines.map((fl, i) => {
+                const total = fl.organics_lb_hr + fl.inorganic_solids_lb_hr;
+                const blOp = ops.find(o => o.stage.includes(fl.name));
+                const color = FL_COLORS[i % FL_COLORS.length];
+                return (
+                  <ProcessBox key={fl.id} title={fl.name} color={color}>
+                    <DataRow label="Organics" value={fl.organics_lb_hr} unit="lb/hr" />
+                    <DataRow label="Inorganics" value={fl.inorganic_solids_lb_hr} unit="lb/hr" />
+                    <div className="border-t border-white/10 my-1" />
+                    <DataRow label="Total Solids" value={total} unit="lb/hr" highlight />
+                    {blOp && (
+                      <>
+                        <DataRow label="Na element" value={blOp.na_lb_hr} unit="lb/hr" />
+                        <DataRow label="S element" value={blOp.s_lb_hr} unit="lb/hr" />
+                        {blOp.na_pct_ds != null && <DataRow label="Na % d.s." value={`${blOp.na_pct_ds.toFixed(2)}%`} />}
+                        {blOp.s_pct_ds != null && <DataRow label="S % d.s." value={`${blOp.s_pct_ds.toFixed(2)}%`} />}
+                      </>
+                    )}
+                  </ProcessBox>
+                );
+              })}
 
               <ProcessBox title="CTO Brine" color="orange">
                 <DataRow label="Na element" value={data.cto_na_lb_hr} unit="lb/hr" />
@@ -165,21 +168,6 @@ export default function BLCompositionChart({ data }: Props) {
                 <div className="font-mono text-[10px] text-amber-400/60 italic">
                   Enters as Na₂SO₄ brine
                 </div>
-              </ProcessBox>
-
-              <ProcessBox title={semicchemFL?.name ?? "Semichem Fiberline"} color="blue">
-                <DataRow label="Organics" value={semicchemFL?.organics_lb_hr ?? 0} unit="lb/hr" />
-                <DataRow label="Inorganics" value={semicchemFL?.inorganic_solids_lb_hr ?? 0} unit="lb/hr" />
-                <div className="border-t border-cyan/20 my-1" />
-                <DataRow label="Total Solids" value={semicchemTotal} unit="lb/hr" highlight />
-                {semicchemBL && (
-                  <>
-                    <DataRow label="Na element" value={semicchemBL.na_lb_hr} unit="lb/hr" />
-                    <DataRow label="S element" value={semicchemBL.s_lb_hr} unit="lb/hr" />
-                    {semicchemBL.na_pct_ds && <DataRow label="Na % d.s." value={`${semicchemBL.na_pct_ds.toFixed(2)}%`} />}
-                    {semicchemBL.s_pct_ds && <DataRow label="S % d.s." value={`${semicchemBL.s_pct_ds.toFixed(2)}%`} />}
-                  </>
-                )}
               </ProcessBox>
             </div>
 
@@ -270,15 +258,26 @@ export default function BLCompositionChart({ data }: Props) {
             {/* Mass Balance Summary */}
             <div className="mt-6 pt-4 border-t border-white/[0.06]">
               <div className="font-mono text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground mb-3">Mass Balance Summary</div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] p-3 text-center">
-                  <div className="font-mono text-lg font-bold text-emerald-400">{fmtNum(pineTotal, 0)}</div>
-                  <div className="font-mono text-[10px] text-emerald-400/60">Pine Solids (lb/hr)</div>
-                </div>
-                <div className="rounded-lg border border-cyan/20 bg-cyan/[0.06] p-3 text-center">
-                  <div className="font-mono text-lg font-bold text-cyan">{fmtNum(semicchemTotal, 0)}</div>
-                  <div className="font-mono text-[10px] text-cyan/60">Semichem Solids (lb/hr)</div>
-                </div>
+              <div className={`grid grid-cols-2 md:grid-cols-${Math.min(fiberlines.length + 2, 6)} gap-3`}>
+                {fiberlines.map((fl, i) => {
+                  const total = fl.organics_lb_hr + fl.inorganic_solids_lb_hr;
+                  const color = FL_COLORS[i % FL_COLORS.length];
+                  const colorMap: Record<BoxColor, { border: string; bg: string; text: string; dim: string }> = {
+                    green:  { border: "border-emerald-500/20", bg: "bg-emerald-500/[0.06]", text: "text-emerald-400", dim: "text-emerald-400/60" },
+                    blue:   { border: "border-cyan/20",        bg: "bg-cyan/[0.06]",        text: "text-cyan",        dim: "text-cyan/60" },
+                    purple: { border: "border-purple-400/20",  bg: "bg-purple-400/[0.06]",  text: "text-purple-400",  dim: "text-purple-400/60" },
+                    red:    { border: "border-red-400/20",     bg: "bg-red-400/[0.06]",     text: "text-red-400",     dim: "text-red-400/60" },
+                    orange: { border: "border-amber-400/20",   bg: "bg-amber-400/[0.06]",   text: "text-amber-400",   dim: "text-amber-400/60" },
+                    slate:  { border: "border-white/[0.1]",    bg: "bg-white/[0.03]",       text: "text-white",       dim: "text-white/40" },
+                  };
+                  const c = colorMap[color];
+                  return (
+                    <div key={fl.id} className={`rounded-lg border ${c.border} ${c.bg} p-3 text-center`}>
+                      <div className={`font-mono text-lg font-bold ${c.text}`}>{fmtNum(total, 0)}</div>
+                      <div className={`font-mono text-[10px] ${c.dim}`}>{fl.name} Solids (lb/hr)</div>
+                    </div>
+                  );
+                })}
                 <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.06] p-3 text-center">
                   <div className="font-mono text-lg font-bold text-amber-400">{fmtNum(data.cto_na_lb_hr + data.cto_s_lbs_hr, 0)}</div>
                   <div className="font-mono text-[10px] text-amber-400/60">CTO Elements (lb/hr)</div>
