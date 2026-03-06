@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: sulfidity-backend
+    name: mansfield-sulfidity-backend
     runtime: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
@@ -8,4 +8,6 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.11"
+      - key: MILL_CONFIG
+        value: "mansfield"
     healthCheckPath: /api/health
