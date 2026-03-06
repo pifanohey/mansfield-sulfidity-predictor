@@ -5,7 +5,7 @@ Reference: SULFIDITY_MODEL_CORRECTED_FINAL v4.xlsx
 All formulas traced and validated against Excel model.
 """
 
-from .mill_profile import FiberlineConfig
+from .mill_profile import FiberlineConfig, RecoveryBoilerConfig, DissolvingTankConfig
 
 # Molecular Weights (g/mol)
 MW = {
@@ -170,6 +170,35 @@ DEFAULTS = {
                 "ea_pct": 0.0365,
                 "gl_ea_pct": 0.017,
                 "wood_moisture": 0.461,
+            },
+        ),
+    ],
+
+    # Recovery boiler configs (Pine Hill: 1 RB)
+    'recovery_boilers': [
+        RecoveryBoilerConfig(
+            id="rb1", name="Recovery Boiler", paired_dt_id="dt1",
+            defaults={
+                "bl_flow_gpm": 340.53,
+                "bl_tds_pct": 69.1,
+                "bl_temp_f": 253.5,
+                "reduction_eff_pct": 95.0,
+                "ash_recycled_pct": 0.07,
+                "saltcake_flow_lb_hr": 2227.0,
+            },
+        ),
+    ],
+
+    # Dissolving tank configs (Pine Hill: 1 DT)
+    'dissolving_tanks': [
+        DissolvingTankConfig(
+            id="dt1", name="Dissolving Tank", paired_rb_id="rb1",
+            defaults={
+                "ww_flow_gpm": 625.0,
+                "ww_tta_lb_ft3": 1.07978,
+                "ww_sulfidity": 0.2550,
+                "shower_flow_gpm": 60.0,
+                "smelt_density_lb_ft3": 110.0,
             },
         ),
     ],

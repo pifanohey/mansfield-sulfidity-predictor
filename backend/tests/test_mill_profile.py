@@ -1,7 +1,10 @@
 """Tests for mill configuration loading (mill_profile.py)."""
 import pytest
 
-from app.engine.mill_profile import load_mill_config, get_mill_config, FiberlineConfig, MillConfig
+from app.engine.mill_profile import (
+    load_mill_config, get_mill_config, FiberlineConfig, MillConfig,
+    RecoveryBoilerConfig, DissolvingTankConfig,
+)
 from app.engine.constants import DEFAULTS
 
 
@@ -213,3 +216,42 @@ class TestGetMillConfig:
         monkeypatch.setenv("MILL_CONFIG", "nonexistent_mill_xyz")
         with pytest.raises(FileNotFoundError):
             get_mill_config()
+
+
+# ── RB/DT config dataclasses ────────────────────────────────────────────────
+
+class TestRecoveryBoilerConfig:
+    """Test RecoveryBoilerConfig and DissolvingTankConfig dataclasses."""
+
+    def test_rb_config_creation(self):
+        rb = RecoveryBoilerConfig(
+            id="rb1", name="Recovery Boiler 1", paired_dt_id="dt1",
+            defaults={"bl_flow_gpm": 340.53},
+        )
+        assert rb.id == "rb1"
+        assert rb.paired_dt_id == "dt1"
+        assert rb.defaults["bl_flow_gpm"] == 340.53
+
+    def test_dt_config_creation(self):
+        dt = DissolvingTankConfig(
+            id="dt1", name="Dissolving Tank 1", paired_rb_id="rb1",
+            defaults={"ww_flow_gpm": 625.0},
+        )
+        assert dt.id == "dt1"
+        assert dt.paired_rb_id == "rb1"
+        assert dt.defaults["ww_flow_gpm"] == 625.0
+
+    def test_mill_config_empty_rb_dt(self):
+        """MillConfig with no RB/DT arrays defaults to empty lists."""
+        cfg = MillConfig(
+            mill_name="Test", makeup_chemical="nash",
+            fiberlines=[], tanks=[],
+        )
+        assert cfg.recovery_boilers == []
+        assert cfg.dissolving_tanks == []
+
+    def test_pine_hill_has_empty_rb_dt(self):
+        """Pine Hill JSON has no RB/DT arrays — should load as empty lists."""
+        cfg = load_mill_config("pine_hill")
+        assert cfg.recovery_boilers == []
+        assert cfg.dissolving_tanks == []

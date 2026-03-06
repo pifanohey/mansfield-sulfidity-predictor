@@ -38,6 +38,24 @@ class FiberlineConfig:
 
 
 @dataclass
+class RecoveryBoilerConfig:
+    """Configuration for a single recovery boiler."""
+    id: str
+    name: str
+    paired_dt_id: str
+    defaults: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class DissolvingTankConfig:
+    """Configuration for a single dissolving tank."""
+    id: str
+    name: str
+    paired_rb_id: str
+    defaults: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class MillConfig:
     """Complete mill configuration."""
     mill_name: str
@@ -45,6 +63,8 @@ class MillConfig:
     fiberlines: List[FiberlineConfig]
     tanks: List[Dict[str, Any]]
     defaults: Dict[str, Any] = field(default_factory=dict)
+    recovery_boilers: List[RecoveryBoilerConfig] = field(default_factory=list)
+    dissolving_tanks: List[DissolvingTankConfig] = field(default_factory=list)
 
 
 def _find_config_dir() -> Path:
@@ -87,12 +107,32 @@ def load_mill_config(mill_id: str) -> MillConfig:
         )
         for fl in data["fiberlines"]
     ]
+    recovery_boilers = [
+        RecoveryBoilerConfig(
+            id=rb["id"],
+            name=rb["name"],
+            paired_dt_id=rb["paired_dt_id"],
+            defaults=rb.get("defaults", {}),
+        )
+        for rb in data.get("recovery_boilers", [])
+    ]
+    dissolving_tanks = [
+        DissolvingTankConfig(
+            id=dt["id"],
+            name=dt["name"],
+            paired_rb_id=dt["paired_rb_id"],
+            defaults=dt.get("defaults", {}),
+        )
+        for dt in data.get("dissolving_tanks", [])
+    ]
     return MillConfig(
         mill_name=data["mill_name"],
         makeup_chemical=data["makeup_chemical"],
         fiberlines=fiberlines,
         tanks=data.get("tanks", []),
         defaults=data.get("defaults", {}),
+        recovery_boilers=recovery_boilers,
+        dissolving_tanks=dissolving_tanks,
     )
 
 

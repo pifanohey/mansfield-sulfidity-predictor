@@ -33,6 +33,133 @@ from .fiberline import calculate_fiberline_bl, mix_wbl_streams
 from .evaporator import calculate_evaporator
 
 
+def _combine_smelts(
+    smelt_list: list,
+    rb_inputs_list: list,
+) -> tuple:
+    """Combine outputs from multiple recovery boilers.
+
+    Sums extensive fields (lb/hr), recomputes intensive fields (sulfidity).
+    For a single-item list, returns the item unchanged (identity).
+
+    Returns (combined_rb_inputs_dict, combined_smelt).
+    """
+    if len(smelt_list) == 1:
+        return rb_inputs_list[0], smelt_list[0]
+
+    # Sum extensive SmeltComposition fields
+    combined = SmeltComposition(
+        na_lbs_hr=sum(s.na_lbs_hr for s in smelt_list),
+        k_lbs_hr=sum(s.k_lbs_hr for s in smelt_list),
+        s_lbs_hr=sum(s.s_lbs_hr for s in smelt_list),
+        reduction_eff_pct=smelt_list[0].reduction_eff_pct,
+        s_retention_strong=smelt_list[0].s_retention_strong,
+        ash_na_na2o=sum(s.ash_na_na2o for s in smelt_list),
+        ash_s_na2o_equiv=sum(s.ash_s_na2o_equiv for s in smelt_list),
+        rb_losses_na2o_lbs_hr=sum(s.rb_losses_na2o_lbs_hr for s in smelt_list),
+        potential_na_alkali=sum(s.potential_na_alkali for s in smelt_list),
+        potential_k_alkali=sum(s.potential_k_alkali for s in smelt_list),
+        potential_s_alkali=sum(s.potential_s_alkali for s in smelt_list),
+        active_sulfide=sum(s.active_sulfide for s in smelt_list),
+        dead_load=sum(s.dead_load for s in smelt_list),
+        tta_lbs_hr=sum(s.tta_lbs_hr for s in smelt_list),
+        dry_solids_lbs_hr=sum(s.dry_solids_lbs_hr for s in smelt_list),
+    )
+    # Recompute intensive: smelt sulfidity
+    combined.smelt_sulfidity_pct = (
+        combined.active_sulfide / combined.tta_lbs_hr * 100
+        if combined.tta_lbs_hr > 0 else 0.0
+    )
+    # Flow-weighted bl_s_pct_fired
+    total_solids = combined.dry_solids_lbs_hr
+    if total_solids > 0:
+        combined.bl_s_pct_fired = sum(
+            s.bl_s_pct_fired * s.dry_solids_lbs_hr for s in smelt_list
+        ) / total_solids
+
+    # Build a combined rb_inputs dict with summed extensive fields
+    combined_rb = RecoveryBoilerInputs(
+        bl_flow_gpm=sum(r.bl_flow_gpm for r in rb_inputs_list),
+        bl_tds_pct=rb_inputs_list[0].bl_tds_pct,
+        bl_temp_f=rb_inputs_list[0].bl_temp_f,
+        bl_na_pct_mixed=rb_inputs_list[0].bl_na_pct_mixed,
+        bl_s_pct_mixed=rb_inputs_list[0].bl_s_pct_mixed,
+        bl_k_pct=rb_inputs_list[0].bl_k_pct,
+        bl_density_lb_gal=rb_inputs_list[0].bl_density_lb_gal,
+        dry_solids_lbs_hr=sum(r.dry_solids_lbs_hr for r in rb_inputs_list),
+        virgin_solids_lbs_hr=sum(r.virgin_solids_lbs_hr for r in rb_inputs_list),
+        virgin_plus_ash_lbs_hr=sum(r.virgin_plus_ash_lbs_hr for r in rb_inputs_list),
+        as_fired_solids_lbs_hr=sum(r.as_fired_solids_lbs_hr for r in rb_inputs_list),
+        ash_solids_lbs_hr=sum(r.ash_solids_lbs_hr for r in rb_inputs_list),
+        ash_na_na2o=sum(r.ash_na_na2o for r in rb_inputs_list),
+        ash_s_na2o=sum(r.ash_s_na2o for r in rb_inputs_list),
+        saltcake_na_lbs_hr=sum(r.saltcake_na_lbs_hr for r in rb_inputs_list),
+        saltcake_s_lbs_hr=sum(r.saltcake_s_lbs_hr for r in rb_inputs_list),
+        rb_losses_na2o_lbs_hr=sum(r.rb_losses_na2o_lbs_hr for r in rb_inputs_list),
+        na_lbs_hr=sum(r.na_lbs_hr for r in rb_inputs_list),
+        k_lbs_hr=sum(r.k_lbs_hr for r in rb_inputs_list),
+        s_lbs_hr=sum(r.s_lbs_hr for r in rb_inputs_list),
+        bl_s_pct_fired=combined.bl_s_pct_fired,
+    )
+    return combined_rb, combined
+
+
+def _combine_dt_inputs(
+    dt_configs: list,
+    dt_overrides: dict,
+    global_defaults: dict,
+) -> dict:
+    """Combine dissolving tank parameters from multiple DTs.
+
+    Sums flow fields (ww_flow_gpm, shower_flow_gpm).
+    Flow-weighted average for concentrations (ww_tta_lb_ft3, ww_sulfidity).
+    System-wide params from global defaults (gl_target_tta_lb_ft3, gl_causticity).
+
+    For a single DT or empty list, returns global defaults unchanged.
+    """
+    if not dt_configs or len(dt_configs) <= 1:
+        return {
+            'ww_flow_gpm': global_defaults.get('ww_flow_gpm', 625.0),
+            'ww_tta_lb_ft3': global_defaults.get('ww_tta_lb_ft3', 1.07978),
+            'ww_sulfidity': global_defaults.get('ww_sulfidity', 0.2550),
+            'shower_flow_gpm': global_defaults.get('shower_flow_gpm', 60.0),
+            'smelt_density_lb_ft3': global_defaults.get('smelt_density_lb_ft3', 110.0),
+            'gl_target_tta_lb_ft3': global_defaults.get('gl_target_tta_lb_ft3', 7.4),
+            'gl_causticity': global_defaults.get('gl_causticity', 0.1016),
+        }
+
+    total_ww_flow = 0.0
+    total_shower_flow = 0.0
+    weighted_tta = 0.0
+    weighted_sulf = 0.0
+    weighted_smelt_dens = 0.0
+
+    for dt in dt_configs:
+        dt_id = dt.id
+        overrides = dt_overrides.get(dt_id, {})
+        ww = overrides.get('ww_flow_gpm', dt.defaults.get('ww_flow_gpm', global_defaults.get('ww_flow_gpm', 625.0)))
+        shower = overrides.get('shower_flow_gpm', dt.defaults.get('shower_flow_gpm', global_defaults.get('shower_flow_gpm', 60.0)))
+        tta = overrides.get('ww_tta_lb_ft3', dt.defaults.get('ww_tta_lb_ft3', global_defaults.get('ww_tta_lb_ft3', 1.07978)))
+        sulf = overrides.get('ww_sulfidity', dt.defaults.get('ww_sulfidity', global_defaults.get('ww_sulfidity', 0.2550)))
+        dens = overrides.get('smelt_density_lb_ft3', dt.defaults.get('smelt_density_lb_ft3', global_defaults.get('smelt_density_lb_ft3', 110.0)))
+
+        total_ww_flow += ww
+        total_shower_flow += shower
+        weighted_tta += tta * ww
+        weighted_sulf += sulf * ww
+        weighted_smelt_dens += dens * ww
+
+    return {
+        'ww_flow_gpm': total_ww_flow,
+        'ww_tta_lb_ft3': weighted_tta / total_ww_flow if total_ww_flow > 0 else 1.07978,
+        'ww_sulfidity': weighted_sulf / total_ww_flow if total_ww_flow > 0 else 0.2550,
+        'shower_flow_gpm': total_shower_flow,
+        'smelt_density_lb_ft3': weighted_smelt_dens / total_ww_flow if total_ww_flow > 0 else 110.0,
+        'gl_target_tta_lb_ft3': global_defaults.get('gl_target_tta_lb_ft3', 7.4),
+        'gl_causticity': global_defaults.get('gl_causticity', 0.1016),
+    }
+
+
 def _run_inner_loop(
     smelt, saltcake_na, saltcake_s, cto_s,
     ww_flow, ww_tta_lb_ft3, ww_sulfidity, shower_flow, smelt_density,
