@@ -286,7 +286,8 @@ export interface CalculationResponse {
   forward_leg: ForwardLegOutput;
   guidance: GuidanceItem[];
   production: Record<string, number>;
-  intermediate: Record<string, number>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  intermediate: Record<string, any>;
   unit_operations: UnitOperationRow[];
   loss_table_detail: LossDetailRow[];
   chemical_additions: ChemicalAdditionRow[];

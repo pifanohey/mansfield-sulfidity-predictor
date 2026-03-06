@@ -51,7 +51,7 @@ export default function RecaustFlowDiagram({
   const dtGlOut        = im.dissolving_tank_flow ?? 0;
   const glTTA          = im.gl_tta_g_L ?? 0;
   const glNa2S         = im.gl_na2s_g_L ?? 0;
-  const glSulf         = im.gl_sulfidity ?? 0;
+  const glSulfPct      = im.gl_sulfidity_pct ?? ((im.gl_sulfidity ?? 0) * 100);
   const dregsUF        = im.dregs_underflow_gpm ?? 0;
   const semiGL         = im.semichem_gl_gpm ?? 0;
   const gritsGpm       = im.grits_entrained_gpm ?? 0;
@@ -64,8 +64,19 @@ export default function RecaustFlowDiagram({
   const mudUF          = im.wlc_underflow_gpm ?? 0;
   const wlcOverflow    = im.wlc_overflow_gpm ?? 0;
   const totalDemand    = im.total_wl_demand_gpm ?? 0;
-  const pineDemand     = im.pine_wl_demand_gpm ?? 0;
-  const semiDemand     = im.semichem_wl_demand_gpm ?? 0;
+  // Build per-fiberline demand list dynamically
+  const fiberlineIds: string[] = (im.fiberline_ids as unknown as string[]) ?? [];
+  const flDemands: Array<{ id: string; gpm: number }> = fiberlineIds.map((id) => ({
+    id,
+    gpm: (im[`${id}_wl_demand_gpm`] as number) ?? 0,
+  }));
+  // Fallback for legacy single-mill (Pine Hill)
+  if (flDemands.length === 0) {
+    const pineDemand = im.pine_wl_demand_gpm ?? 0;
+    const semiDemand = im.semichem_wl_demand_gpm ?? 0;
+    if (pineDemand > 0) flDemands.push({ id: "pine", gpm: pineDemand });
+    if (semiDemand > 0) flDemands.push({ id: "semichem", gpm: semiDemand });
+  }
   const finalTTA       = im.final_wl_tta_g_L ?? 0;
   const finalNa2S      = im.final_wl_na2s_g_L ?? 0;
   const finalEA        = im.final_wl_ea_g_L ?? 0;
@@ -84,8 +95,6 @@ export default function RecaustFlowDiagram({
   const surplus        = wlcOverflow - totalDemand;
   const surplusPct     = totalDemand > 0 ? (surplus / wlcOverflow) * 100 : 0;
   const demandBarPct   = wlcOverflow > 0 ? (totalDemand / wlcOverflow) * 100 : 0;
-  const pineBarPct     = wlcOverflow > 0 ? (pineDemand / wlcOverflow) * 100 : 0;
-  const semiBarPct     = wlcOverflow > 0 ? (semiDemand / wlcOverflow) * 100 : 0;
   const surplusBarPct  = wlcOverflow > 0 ? (surplus / wlcOverflow) * 100 : 0;
 
   /* smelt TTA from recovery boiler results */
@@ -179,7 +188,7 @@ export default function RecaustFlowDiagram({
           <text x="440" y="255" fontSize="11" fill={C.label} textAnchor="middle">Total In: {f1(totalIn)} gpm</text>
           <text x="440" y="270" fontSize="11" fill={C.red} textAnchor="middle">Steam Lost: -{f1(steamGpm)} gpm ({f1(steamLbHr)} lb/hr)</text>
           <text x="440" y="290" fontSize="14" fontWeight="700" fill={C.blue} textAnchor="middle">GL Out: {f1(dtGlOut)} gpm</text>
-          <text x="440" y="308" fontSize="11" fill={C.green} textAnchor="middle">TTA: {f1(glTTA)} g/L | Sulfidity: {f1(glSulf * 100)}%</text>
+          <text x="440" y="308" fontSize="11" fill={C.green} textAnchor="middle">TTA: {f1(glTTA)} g/L | Sulfidity: {f1(glSulfPct)}%</text>
 
           {/* ═══ STEAM ARROW ═══ */}
           <line x1="440" y1="210" x2="440" y2="160" stroke={C.red} strokeWidth="2" strokeDasharray="6,4" markerEnd="url(#ah-r)" />
@@ -194,7 +203,7 @@ export default function RecaustFlowDiagram({
           <text x="720" y="258" fontSize="11" fill={C.blue} textAnchor="middle">In: {f1(dtGlOut)} gpm</text>
           <text x="720" y="273" fontSize="11" fill={C.green} textAnchor="middle">TTA: {f1(glTTA)} g/L</text>
           <text x="720" y="288" fontSize="11" fill={C.label} textAnchor="middle">Na₂S: {f1(glNa2S)} g/L</text>
-          <text x="720" y="303" fontSize="11" fill={C.pink} textAnchor="middle">Sulfidity: {f1(glSulf * 100)}%</text>
+          <text x="720" y="303" fontSize="11" fill={C.pink} textAnchor="middle">Sulfidity: {f1(glSulfPct)}%</text>
 
           {/* ═══ SUBTRACTIONS ═══ */}
           <text x="620" y="350" fontSize="11" fill={C.muted} fontWeight="600" letterSpacing="1">SUBTRACTIONS</text>
@@ -271,8 +280,27 @@ export default function RecaustFlowDiagram({
 
           <BarRow label="WL Produced" value={wlcOverflow} pct={100} color="bg-gradient-to-r from-cyan/80 to-cyan" valueColor="text-cyan" />
           <BarRow label="Total WL Demand" value={totalDemand} pct={demandBarPct} color="bg-gradient-to-r from-amber-400/80 to-amber-400" valueColor="text-amber-400" />
-          <BarRow label="Pine Fiberline" value={pineDemand} pct={pineBarPct} color="bg-gradient-to-r from-emerald-400/80 to-emerald-400" valueColor="text-emerald-400" sub />
-          <BarRow label="Semichem Fiberline" value={semiDemand} pct={semiBarPct} color="bg-gradient-to-r from-violet-400/80 to-violet-400" valueColor="text-violet-400" sub />
+          {flDemands.map((fl, i) => {
+            const flBarPct = wlcOverflow > 0 ? (fl.gpm / wlcOverflow) * 100 : 0;
+            const colors = [
+              "bg-gradient-to-r from-emerald-400/80 to-emerald-400",
+              "bg-gradient-to-r from-violet-400/80 to-violet-400",
+              "bg-gradient-to-r from-orange-400/80 to-orange-400",
+              "bg-gradient-to-r from-pink-400/80 to-pink-400",
+            ];
+            const textColors = ["text-emerald-400", "text-violet-400", "text-orange-400", "text-pink-400"];
+            return (
+              <BarRow
+                key={fl.id}
+                label={fl.id.replace(/_/g, " ")}
+                value={fl.gpm}
+                pct={flBarPct}
+                color={colors[i % colors.length]}
+                valueColor={textColors[i % textColors.length]}
+                sub
+              />
+            );
+          })}
 
           <div className="mt-1 border-t border-white/[0.06] pt-2">
             <BarRow label="Surplus" value={surplus} pct={surplusBarPct} color="bg-gradient-to-r from-blue-400/80 to-blue-400" valueColor="text-blue-400" prefix="+" />

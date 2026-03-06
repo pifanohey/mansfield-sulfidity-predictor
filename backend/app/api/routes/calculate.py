@@ -193,6 +193,8 @@ def _build_response(results: Dict[str, Any], inputs: Dict[str, Any]) -> Calculat
             'wl_flow_from_slaker_gpm': results.get('wl_flow_from_slaker', 0),
             'gl_aa_g_L': results.get('gl_aa_g_L', 0),
             'gl_sulfidity': results.get('gl_sulfidity', 0),
+            'gl_sulfidity_pct': results.get('gl_sulfidity_pct', 0),
+            'fiberline_ids': results.get('fiberline_ids', []),
             'wl_naoh_slaker_g_L': results.get('wl_naoh_slaker_g_L', 0),
             'wl_aa_slaker_g_L': results.get('wl_aa_slaker_g_L', 0),
             'wl_ea_slaker_g_L': results.get('wl_ea_slaker_g_L', 0),

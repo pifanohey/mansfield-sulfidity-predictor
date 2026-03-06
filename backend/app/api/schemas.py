@@ -502,7 +502,7 @@ class CalculationResponse(BaseModel):
     forward_leg: ForwardLegOutput = Field(default_factory=ForwardLegOutput)
     guidance: List[GuidanceItemOutput] = Field(default_factory=list)
     production: Dict[str, float] = Field(default_factory=dict)
-    intermediate: Dict[str, float] = Field(default_factory=dict)
+    intermediate: Dict[str, Any] = Field(default_factory=dict)
     unit_operations: List[UnitOperationRow] = Field(default_factory=list)
     loss_table_detail: List[LossDetailRow] = Field(default_factory=list)
     chemical_additions: List[ChemicalAdditionRow] = Field(default_factory=list)
