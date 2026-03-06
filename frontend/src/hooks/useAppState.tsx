@@ -7,9 +7,23 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import type { CalculationRequest, CalculationResponse, MillConfig, FiberlineInputState } from "@/lib/types";
+import type {
+  CalculationRequest,
+  CalculationResponse,
+  MillConfig,
+  FiberlineInputState,
+  RecoveryBoilerInputs,
+} from "@/lib/types";
 import { DEFAULT_INPUTS } from "@/lib/defaults";
 import { calculate } from "@/lib/api";
+
+export interface DTInputState {
+  ww_flow_gpm: number;
+  ww_tta_lb_ft3: number;
+  ww_sulfidity: number;
+  shower_flow_gpm: number;
+  smelt_density_lb_ft3: number;
+}
 
 interface AppState {
   inputs: CalculationRequest;
@@ -18,12 +32,16 @@ interface AppState {
   error: string | null;
   millConfig: MillConfig | null;
   fiberlineInputs: Record<string, FiberlineInputState>;
+  rbInputs: Record<string, RecoveryBoilerInputs>;
+  dtInputs: Record<string, DTInputState>;
   updateField: <K extends keyof CalculationRequest>(
     key: K,
     value: CalculationRequest[K]
   ) => void;
   updateNestedField: (section: string, key: string, value: unknown) => void;
   updateFiberlineField: (fiberlineId: string, key: string, value: number) => void;
+  updateRBField: (rbId: string, key: string, value: number) => void;
+  updateDTField: (dtId: string, key: string, value: number) => void;
   setMillConfig: (config: MillConfig) => void;
   resetToDefaults: () => void;
   runCalculation: (inputs?: CalculationRequest) => Promise<CalculationResponse | null>;
@@ -38,6 +56,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [millConfig, setMillConfigRaw] = useState<MillConfig | null>(null);
   const [fiberlineInputs, setFiberlineInputs] = useState<Record<string, FiberlineInputState>>({});
+  const [rbInputs, setRBInputs] = useState<Record<string, RecoveryBoilerInputs>>({});
+  const [dtInputs, setDTInputs] = useState<Record<string, DTInputState>>({});
 
   const updateField = useCallback(
     <K extends keyof CalculationRequest>(key: K, value: CalculationRequest[K]) => {
@@ -73,11 +93,64 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const updateRBField = useCallback(
+    (rbId: string, key: string, value: number) => {
+      setRBInputs((prev) => ({
+        ...prev,
+        [rbId]: {
+          ...prev[rbId],
+          [key]: value,
+        },
+      }));
+    },
+    []
+  );
+
+  const updateDTField = useCallback(
+    (dtId: string, key: string, value: number) => {
+      setDTInputs((prev) => ({
+        ...prev,
+        [dtId]: {
+          ...prev[dtId],
+          [key]: value,
+        },
+      }));
+    },
+    []
+  );
+
   const applyMillDefaults = useCallback((config: MillConfig) => {
     const d = config.defaults;
     if (!d) return;
 
     const GL_TO_LB_FT3 = 1 / 16.01846;
+
+    // Initialize per-RB inputs from config defaults
+    const newRBInputs: Record<string, RecoveryBoilerInputs> = {};
+    for (const rb of config.recovery_boilers) {
+      newRBInputs[rb.id] = {
+        bl_flow_gpm: rb.defaults.bl_flow_gpm ?? d.bl_flow_gpm ?? 340.53,
+        bl_tds_pct: rb.defaults.bl_tds_pct ?? d.bl_tds_pct ?? 69.1,
+        bl_temp_f: rb.defaults.bl_temp_f ?? d.bl_temp_f ?? 253.5,
+        reduction_eff_pct: rb.defaults.reduction_eff_pct ?? d.reduction_efficiency_pct ?? 95.0,
+        ash_recycled_pct: rb.defaults.ash_recycled_pct ?? d.ash_recycled_pct ?? 0.07,
+        saltcake_flow_lb_hr: rb.defaults.saltcake_flow_lb_hr ?? d.saltcake_flow_lb_hr ?? 0,
+      };
+    }
+    setRBInputs(newRBInputs);
+
+    // Initialize per-DT inputs from config defaults
+    const newDTInputs: Record<string, DTInputState> = {};
+    for (const dt of config.dissolving_tanks) {
+      newDTInputs[dt.id] = {
+        ww_flow_gpm: dt.defaults.ww_flow_gpm ?? d.ww_flow_gpm ?? 625.0,
+        ww_tta_lb_ft3: dt.defaults.ww_tta_lb_ft3 ?? d.ww_tta_lb_ft3 ?? 1.07978,
+        ww_sulfidity: dt.defaults.ww_sulfidity ?? d.ww_sulfidity ?? 0.255,
+        shower_flow_gpm: dt.defaults.shower_flow_gpm ?? d.shower_flow_gpm ?? 60.0,
+        smelt_density_lb_ft3: dt.defaults.smelt_density_lb_ft3 ?? d.smelt_density_lb_ft3 ?? 110.0,
+      };
+    }
+    setDTInputs(newDTInputs);
 
     setInputs((prev) => {
       const updates: Partial<CalculationRequest> = {};
@@ -87,7 +160,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (d.bl_s_pct != null) updates.bl_s_pct = d.bl_s_pct;
       if (d.bl_k_pct != null) updates.bl_k_pct = d.bl_k_pct;
 
-      // Recovery boiler (global/flat inputs)
+      // Recovery boiler (global/flat — used for single-RB mills)
       if (d.bl_flow_gpm != null || d.bl_tds_pct != null) {
         updates.recovery_boiler = {
           bl_flow_gpm: d.bl_flow_gpm ?? prev.recovery_boiler?.bl_flow_gpm ?? 340.53,
@@ -99,7 +172,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         };
       }
 
-      // Dissolving tank
+      // Dissolving tank (global/flat — used for single-DT mills)
       if (d.ww_flow_gpm != null) updates.ww_flow_gpm = d.ww_flow_gpm;
       if (d.ww_tta_lb_ft3 != null) updates.ww_tta_lb_ft3 = d.ww_tta_lb_ft3;
       if (d.ww_sulfidity != null) updates.ww_sulfidity = d.ww_sulfidity;
@@ -168,6 +241,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const resetToDefaults = useCallback(() => {
     setInputs({ ...DEFAULT_INPUTS });
     setFiberlineInputs({});
+    setRBInputs({});
+    setDTInputs({});
     setResults(null);
   }, []);
 
@@ -175,7 +250,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     async (overrideInputs?: CalculationRequest) => {
       let inp = overrideInputs ?? inputs;
 
-      // If mill config is available, build the V2 fiberlines array
+      // If mill config is available, build the V2 arrays
       if (millConfig && !overrideInputs) {
         const fiberlines = millConfig.fiberlines.map((fl) => ({
           id: fl.id,
@@ -191,18 +266,29 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         }));
         inp = { ...inp, fiberlines };
 
-        // Multi-RB: send per-RB configs when mill has multiple recovery boilers
+        // Multi-RB: send per-RB overrides from editable state
         if (millConfig.recovery_boilers?.length > 1) {
           const recovery_boilers = millConfig.recovery_boilers.map((rb) => ({
             id: rb.id,
+            bl_flow_gpm: rbInputs[rb.id]?.bl_flow_gpm,
+            bl_tds_pct: rbInputs[rb.id]?.bl_tds_pct,
+            bl_temp_f: rbInputs[rb.id]?.bl_temp_f,
+            reduction_eff_pct: rbInputs[rb.id]?.reduction_eff_pct,
+            ash_recycled_pct: rbInputs[rb.id]?.ash_recycled_pct,
+            saltcake_flow_lb_hr: rbInputs[rb.id]?.saltcake_flow_lb_hr,
           }));
           inp = { ...inp, recovery_boilers };
         }
 
-        // Multi-DT: send per-DT configs when mill has multiple dissolving tanks
+        // Multi-DT: send per-DT overrides from editable state
         if (millConfig.dissolving_tanks?.length > 1) {
           const dissolving_tanks = millConfig.dissolving_tanks.map((dt) => ({
             id: dt.id,
+            ww_flow_gpm: dtInputs[dt.id]?.ww_flow_gpm,
+            ww_tta_lb_ft3: dtInputs[dt.id]?.ww_tta_lb_ft3,
+            ww_sulfidity: dtInputs[dt.id]?.ww_sulfidity,
+            shower_flow_gpm: dtInputs[dt.id]?.shower_flow_gpm,
+            smelt_density_lb_ft3: dtInputs[dt.id]?.smelt_density_lb_ft3,
           }));
           inp = { ...inp, dissolving_tanks };
         }
@@ -222,7 +308,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         setLoading(false);
       }
     },
-    [inputs, millConfig, fiberlineInputs]
+    [inputs, millConfig, fiberlineInputs, rbInputs, dtInputs]
   );
 
   return (
@@ -234,9 +320,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         error,
         millConfig,
         fiberlineInputs,
+        rbInputs,
+        dtInputs,
         updateField,
         updateNestedField,
         updateFiberlineField,
+        updateRBField,
+        updateDTField,
         setMillConfig,
         resetToDefaults,
         runCalculation,

@@ -77,9 +77,13 @@ export default function InputsPage() {
     loading,
     millConfig,
     fiberlineInputs,
+    rbInputs,
+    dtInputs,
     updateField,
     updateNestedField,
     updateFiberlineField,
+    updateRBField,
+    updateDTField,
     setMillConfig,
     resetToDefaults,
     runCalculation,
@@ -235,6 +239,8 @@ export default function InputsPage() {
                 rb={inputs.recovery_boiler ?? DEFAULT_RB_INPUTS}
                 onChange={(k, v) => updateNestedField("recovery_boiler", k, v)}
                 rbConfigs={millConfig?.recovery_boilers}
+                rbInputs={rbInputs}
+                onRBFieldChange={updateRBField}
               />
             </AccordionContent>
           </AccordionItem>
@@ -280,6 +286,8 @@ export default function InputsPage() {
                 glCausticity={inputs.gl_causticity}
                 onChange={(k, v) => updateField(k as keyof typeof inputs, v as never)}
                 dtConfigs={millConfig?.dissolving_tanks}
+                dtInputs={dtInputs}
+                onDTFieldChange={updateDTField}
               />
             </AccordionContent>
           </AccordionItem>
