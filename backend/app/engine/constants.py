@@ -292,6 +292,8 @@ DEFAULTS = {
     'loss_weak_wash_overflow_s': 0.1,  'loss_weak_wash_overflow_na': 0.7,
     'loss_ncg_s': 8.5,                 'loss_ncg_na': 1.0,
     'loss_recaust_spill_s': 0.4,       'loss_recaust_spill_na': 2.2,
+    'loss_rb_dump_tank_s': 0.0,        'loss_rb_dump_tank_na': 0.0,
+    'loss_kiln_scrubber_s': 0.0,       'loss_kiln_scrubber_na': 0.0,
     # Other
     'loss_truck_out_gl_s': 0.0,        'loss_truck_out_gl_na': 0.0,
     'loss_unaccounted_s': 0.0,         'loss_unaccounted_na': 0.0,

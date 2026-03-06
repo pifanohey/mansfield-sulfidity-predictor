@@ -29,6 +29,8 @@ LOSS_SOURCES: List[Tuple[str, str, str]] = [
     ('weak_wash_overflow', 'Weak Wash Overflow', 'Recausticizing'),
     ('ncg', 'NCG', 'NCG System'),
     ('recaust_spill', 'Recaust Spill', 'Recausticizing'),
+    ('rb_dump_tank', 'RB Dump Tank', 'Recovery Boiler'),
+    ('kiln_scrubber', 'Kiln Scrubber', 'Lime Kiln'),
     ('truck_out_gl', 'Truck Out Green Liquor', 'Other'),
     ('unaccounted', 'Unaccounted', 'Other'),
 ]
@@ -65,6 +67,10 @@ class SodaSulfurLosses:
     ncg_na: float = 1.0
     recaust_spill_s: float = 0.4
     recaust_spill_na: float = 2.2
+    rb_dump_tank_s: float = 0.0
+    rb_dump_tank_na: float = 0.0
+    kiln_scrubber_s: float = 0.0
+    kiln_scrubber_na: float = 0.0
     # Other
     truck_out_gl_s: float = 0.0
     truck_out_gl_na: float = 0.0

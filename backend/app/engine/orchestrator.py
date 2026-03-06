@@ -28,7 +28,7 @@ from .dissolving_tank import calculate_dissolving_tank, calculate_ww_flow_for_tt
 from .dregs_filter import calculate_dregs_filter
 from .slaker_model import calculate_slaker_model
 from .mill_config import TANKS, TANK_GROUPS
-from .mill_profile import FiberlineConfig
+from .mill_profile import FiberlineConfig, RecoveryBoilerConfig, DissolvingTankConfig
 from .fiberline import calculate_fiberline_bl, mix_wbl_streams
 from .evaporator import calculate_evaporator
 
@@ -720,6 +720,11 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
     fiberline_configs: List[FiberlineConfig] = inputs.get('fiberlines', DEFAULTS['fiberlines'])
     total_prod = sum(fl.production_bdt_day for fl in fiberline_configs)
 
+    # ── RB/DT configs (optional — single-item lists if absent) ──
+    rb_configs: List[RecoveryBoilerConfig] = inputs.get('recovery_boilers', DEFAULTS['recovery_boilers'])
+    dt_configs: List[DissolvingTankConfig] = inputs.get('dissolving_tanks', DEFAULTS['dissolving_tanks'])
+    dt_overrides: dict = inputs.get('dissolving_tank_overrides', {})
+
     causticity = inputs.get('causticity_pct', DEFAULTS['causticity_pct']) / 100
     lime_charge_ratio = inputs.get('lime_charge_ratio', DEFAULTS['lime_charge_ratio'])
     cao_in_lime = inputs.get('cao_in_lime_pct', DEFAULTS['cao_in_lime_pct'])
@@ -751,7 +756,12 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
     #   - Na comes from soap (already in BL, recirculation)
     cto_total_h2so4_lb_hr = cto_h2so4_per_ton * cto_tpd / 24
     cto_s_lb_hr = cto_total_h2so4_lb_hr * (MW['S'] / MW['H2SO4'])
-    cto_na_lb_hr = 0.0  # H2SO4 contains no Na - soap Na is recirculation, not new input
+    # CTO NaOH: Na returns to system via brine → evaporators
+    # Pine Hill: 0 (soap Na is recirculation only, no NaOH added)
+    # Mansfield: 193 lb NaOH/ton CTO (tall oil plant adds NaOH, Na returns)
+    cto_naoh_per_ton = inputs.get('cto_naoh_per_ton', 0.0)
+    cto_naoh_lb_hr = cto_naoh_per_ton * cto_tpd / 24
+    cto_na_lb_hr = cto_naoh_lb_hr * (MW['Na'] / MW['NaOH'])  # element Na
     # CTO brine water: approximate — small relative to WBL water
     cto_water_lb_hr = inputs.get('cto_water_lb_hr', 500.0)
 
@@ -866,6 +876,17 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
     # Dregs solids flow for dregs filter (used inside inner loop for WW flow solve)
     dregs_solids_lb_hr = dregs_lb_bdt * total_prod / 24
 
+    # ── Combine DT inputs from multi-DT configs (if present) ──
+    if len(dt_configs) > 1:
+        combined_dt = _combine_dt_inputs(dt_configs, dt_overrides, DEFAULTS)
+        ww_flow = combined_dt['ww_flow_gpm']
+        ww_tta_lb_ft3 = combined_dt['ww_tta_lb_ft3']
+        ww_sulfidity = combined_dt['ww_sulfidity']
+        shower_flow = combined_dt['shower_flow_gpm']
+        smelt_density = combined_dt['smelt_density_lb_ft3']
+        gl_target_tta_lb_ft3 = combined_dt['gl_target_tta_lb_ft3']
+        gl_causticity = combined_dt['gl_causticity']
+
     # ── CTO S delta adjustment for initial BL composition ──
     # CTO S enters via WBL mixer (forward leg, end of outer loop iteration).
     # Without this adjustment, the first iteration uses lab BL S% that doesn't
@@ -882,19 +903,63 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
     for outer_iter in range(OUTER_MAX_ITER):
         outer_iterations = outer_iter + 1
 
-        # ── Step 2: Recovery Boiler ──
+        # ── Step 2: Recovery Boiler(s) ──
         s_ret_strong_init = 0.9861
 
-        rb_inputs, smelt = calculate_full_rb(
-            bl_flow_gpm=bl_flow, bl_tds_pct=bl_tds, bl_temp_f=bl_temp,
-            bl_na_pct_inv=bl_na_pct, bl_s_pct_inv=bl_s_pct,
-            bl_k_pct=bl_k_pct,
-            reduction_eff_pct=re_pct, s_retention_strong=s_ret_strong_init,
-            ash_recycled_pct=ash_recycled_pct,
-            rb_losses_na2o_bdt=rb_losses_na2o_bdt,
-            total_production_bdt_day=total_prod,
-            saltcake_flow_lb_hr=saltcake_flow,
+        # Build per-RB parameter lists
+        # Each RB gets its proportional share of production based on BL flow fraction
+        total_bl_flow = sum(
+            rb.defaults.get('bl_flow_gpm', bl_flow / len(rb_configs))
+            for rb in rb_configs
         )
+
+        per_rb_smelt_list = []
+        per_rb_inputs_list = []
+        per_rb_results = {}  # For storing per-RB breakdown
+
+        for rb in rb_configs:
+            rb_d = rb.defaults
+            # Per-RB params fall back to flat inputs (which come from user or DEFAULTS)
+            rb_bl_flow = rb_d.get('bl_flow_gpm', bl_flow / len(rb_configs))
+            rb_bl_tds = rb_d.get('bl_tds_pct', bl_tds)
+            rb_bl_temp = rb_d.get('bl_temp_f', bl_temp)
+            rb_re = rb_d.get('reduction_eff_pct', re_pct)
+            rb_ash = rb_d.get('ash_recycled_pct', ash_recycled_pct)
+            rb_saltcake = rb_d.get('saltcake_flow_lb_hr', saltcake_flow / len(rb_configs))
+
+            # User-level flat overrides take precedence over config defaults
+            # (e.g., user passes reduction_eff_pct=90 — applies to all RBs)
+            if 'reduction_eff_pct' in inputs:
+                rb_re = re_pct
+            if 'ash_recycled_pct' in inputs:
+                rb_ash = ash_recycled_pct
+            if 'bl_tds_pct' in inputs:
+                rb_bl_tds = bl_tds
+            if 'bl_temp_f' in inputs:
+                rb_bl_temp = bl_temp
+            if 'saltcake_flow_lb_hr' in inputs:
+                rb_saltcake = saltcake_flow / len(rb_configs)
+
+            # Production share proportional to BL flow
+            flow_fraction = rb_bl_flow / total_bl_flow if total_bl_flow > 0 else 1.0 / len(rb_configs)
+            rb_prod = total_prod * flow_fraction
+
+            rb_inp, rb_sme = calculate_full_rb(
+                bl_flow_gpm=rb_bl_flow, bl_tds_pct=rb_bl_tds, bl_temp_f=rb_bl_temp,
+                bl_na_pct_inv=bl_na_pct, bl_s_pct_inv=bl_s_pct,
+                bl_k_pct=bl_k_pct,
+                reduction_eff_pct=rb_re, s_retention_strong=s_ret_strong_init,
+                ash_recycled_pct=rb_ash,
+                rb_losses_na2o_bdt=rb_losses_na2o_bdt,
+                total_production_bdt_day=rb_prod,
+                saltcake_flow_lb_hr=rb_saltcake,
+            )
+            per_rb_inputs_list.append(rb_inp)
+            per_rb_smelt_list.append(rb_sme)
+            per_rb_results[rb.id] = {'rb_inputs': rb_inp, 'smelt': rb_sme, 'production': rb_prod}
+
+        # Combine all RBs
+        rb_inputs, smelt = _combine_smelts(per_rb_smelt_list, per_rb_inputs_list)
 
         s_ret_results = calculate_s_retention(
             total_production_bdt_day=total_prod,
@@ -908,19 +973,48 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
         s_ret_strong = s_ret_results.s_retention_strong
         s_ret_weak = s_ret_results.s_retention_weak
 
+        # Re-run with corrected S retention if it changed significantly
         if abs(s_ret_strong - s_ret_strong_init) > 0.001:
-            rb_inputs, smelt = calculate_full_rb(
-                bl_flow_gpm=bl_flow, bl_tds_pct=bl_tds, bl_temp_f=bl_temp,
-                bl_na_pct_inv=bl_na_pct, bl_s_pct_inv=bl_s_pct,
-                bl_k_pct=bl_k_pct,
-                reduction_eff_pct=re_pct, s_retention_strong=s_ret_strong,
-                ash_recycled_pct=ash_recycled_pct,
-                rb_losses_na2o_bdt=rb_losses_na2o_bdt,
-                total_production_bdt_day=total_prod,
-                saltcake_flow_lb_hr=saltcake_flow,
-            )
+            per_rb_smelt_list = []
+            per_rb_inputs_list = []
+            for rb in rb_configs:
+                rb_d = rb.defaults
+                rb_bl_flow = rb_d.get('bl_flow_gpm', bl_flow / len(rb_configs))
+                rb_bl_tds = rb_d.get('bl_tds_pct', bl_tds)
+                rb_bl_temp = rb_d.get('bl_temp_f', bl_temp)
+                rb_re = rb_d.get('reduction_eff_pct', re_pct)
+                rb_ash = rb_d.get('ash_recycled_pct', ash_recycled_pct)
+                rb_saltcake = rb_d.get('saltcake_flow_lb_hr', saltcake_flow / len(rb_configs))
+                if 'reduction_eff_pct' in inputs:
+                    rb_re = re_pct
+                if 'ash_recycled_pct' in inputs:
+                    rb_ash = ash_recycled_pct
+                if 'bl_tds_pct' in inputs:
+                    rb_bl_tds = bl_tds
+                if 'bl_temp_f' in inputs:
+                    rb_bl_temp = bl_temp
+                if 'saltcake_flow_lb_hr' in inputs:
+                    rb_saltcake = saltcake_flow / len(rb_configs)
+                flow_fraction = rb_bl_flow / total_bl_flow if total_bl_flow > 0 else 1.0 / len(rb_configs)
+                rb_prod = total_prod * flow_fraction
 
-        # Saltcake Na/S contributions (element basis, lb/hr)
+                rb_inp, rb_sme = calculate_full_rb(
+                    bl_flow_gpm=rb_bl_flow, bl_tds_pct=rb_bl_tds, bl_temp_f=rb_bl_temp,
+                    bl_na_pct_inv=bl_na_pct, bl_s_pct_inv=bl_s_pct,
+                    bl_k_pct=bl_k_pct,
+                    reduction_eff_pct=rb_re, s_retention_strong=s_ret_strong,
+                    ash_recycled_pct=rb_ash,
+                    rb_losses_na2o_bdt=rb_losses_na2o_bdt,
+                    total_production_bdt_day=rb_prod,
+                    saltcake_flow_lb_hr=rb_saltcake,
+                )
+                per_rb_inputs_list.append(rb_inp)
+                per_rb_smelt_list.append(rb_sme)
+                per_rb_results[rb.id] = {'rb_inputs': rb_inp, 'smelt': rb_sme, 'production': rb_prod}
+
+            rb_inputs, smelt = _combine_smelts(per_rb_smelt_list, per_rb_inputs_list)
+
+        # Saltcake Na/S contributions (element basis, lb/hr) — combined across RBs
         saltcake_na_element_lb_hr = rb_inputs.saltcake_na_lbs_hr
         saltcake_s_element_lb_hr = rb_inputs.saltcake_s_lbs_hr
 
@@ -1162,6 +1256,21 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
     results['rb_ash_solids_lbs_hr'] = rb_inputs.ash_solids_lbs_hr
     results['rb_virgin_solids_lbs_hr'] = rb_inputs.virgin_solids_lbs_hr
     results['rb_losses_na2o_lbs_hr'] = rb_inputs.rb_losses_na2o_lbs_hr
+
+    # Per-RB breakdown (when multiple RBs)
+    results['recovery_boiler_ids'] = [rb.id for rb in rb_configs]
+    if len(rb_configs) > 1:
+        for rb in rb_configs:
+            rb_data = per_rb_results.get(rb.id, {})
+            rb_s = rb_data.get('smelt')
+            rb_r = rb_data.get('rb_inputs')
+            if rb_s and rb_r:
+                results[f'{rb.id}_tta_lbs_hr'] = rb_s.tta_lbs_hr
+                results[f'{rb.id}_smelt_sulfidity_pct'] = rb_s.smelt_sulfidity_pct
+                results[f'{rb.id}_active_sulfide'] = rb_s.active_sulfide
+                results[f'{rb.id}_bl_flow_gpm'] = rb_r.bl_flow_gpm
+                results[f'{rb.id}_dry_solids_lbs_hr'] = rb_r.dry_solids_lbs_hr
+                results[f'{rb.id}_reduction_eff_pct'] = rb_s.reduction_eff_pct
 
     # Dissolving tank
     if dt_result:
