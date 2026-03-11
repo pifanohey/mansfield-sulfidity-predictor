@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
 import PageContainer from "@/components/layout/PageContainer";
@@ -22,7 +21,6 @@ import LossTableSection from "@/components/inputs/LossTableSection";
 import DissolvingTankSection from "@/components/inputs/DissolvingTankSection";
 import SlakerWLCSection from "@/components/inputs/SlakerWLCSection";
 import { useAppState } from "@/hooks/useAppState";
-import { useMillConfig } from "@/hooks/useMillConfig";
 import type { FiberlineConfig } from "@/lib/types";
 import {
   DEFAULT_TANK_LEVELS,
@@ -84,19 +82,10 @@ export default function InputsPage() {
     updateFiberlineField,
     updateRBField,
     updateDTField,
-    setMillConfig,
+    configReady,
     resetToDefaults,
     runCalculation,
   } = useAppState();
-
-  const { config, loading: configLoading, error: configError } = useMillConfig();
-
-  // Push loaded mill config into app state
-  useEffect(() => {
-    if (config) {
-      setMillConfig(config);
-    }
-  }, [config, setMillConfig]);
 
   const fiberlines = millConfig?.fiberlines ?? FALLBACK_FIBERLINES;
   const makeupLabel = millConfig
@@ -160,13 +149,13 @@ export default function InputsPage() {
           </div>
         </div>
 
-        {configLoading && (
+        {!configReady && (
           <div className="mb-4 rounded-md border border-white/[0.06] bg-white/[0.02] px-3 py-2 font-mono text-[10px] text-muted-foreground">
             Loading mill configuration...
           </div>
         )}
 
-        {configError && (
+        {configReady && !millConfig && (
           <div className="mb-4 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2 font-mono text-[10px] text-amber-400">
             Using fallback configuration — could not load mill config from server.
           </div>

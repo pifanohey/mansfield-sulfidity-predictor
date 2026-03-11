@@ -44,12 +44,12 @@ class DiagramErrorBoundary extends Component<
 }
 
 export default function ResultsPage() {
-  const { inputs, results, loading, error, runCalculation } = useAppState();
+  const { inputs, results, loading, error, configReady, runCalculation } = useAppState();
   const [exporting, setExporting] = useState<"pdf" | "excel" | null>(null);
 
   useEffect(() => {
-    if (!results) runCalculation();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (configReady && !results) runCalculation();
+  }, [configReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSave = async () => {
     if (results) {

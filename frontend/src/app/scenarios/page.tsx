@@ -10,11 +10,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAppState } from "@/hooks/useAppState";
 
 export default function ScenariosPage() {
-  const { inputs, results, loading, runCalculation } = useAppState();
+  const { inputs, results, loading, configReady, runCalculation } = useAppState();
 
   useEffect(() => {
-    if (!results) runCalculation();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (configReady && !results) runCalculation();
+  }, [configReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>

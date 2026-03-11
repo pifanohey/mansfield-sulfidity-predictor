@@ -14,11 +14,11 @@ import { fmtNum, fmtPct } from "@/lib/format";
 import { RefreshCw } from "lucide-react";
 
 export default function DashboardPage() {
-  const { inputs, results, loading, error, runCalculation } = useAppState();
+  const { inputs, results, loading, error, configReady, runCalculation } = useAppState();
 
   useEffect(() => {
-    if (!results) runCalculation();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (configReady && !results) runCalculation();
+  }, [configReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
@@ -99,7 +99,7 @@ export default function DashboardPage() {
         {!results && !loading && (
           <div className="flex flex-col items-center justify-center py-20">
             <div className="font-mono text-sm text-muted-foreground">
-              Click &quot;Recalculate&quot; to run with Pine Hill defaults.
+              Click &quot;Recalculate&quot; to run with mill defaults.
             </div>
           </div>
         )}

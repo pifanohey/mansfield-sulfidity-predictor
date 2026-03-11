@@ -5,6 +5,8 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
+  useRef,
   type ReactNode,
 } from "react";
 import type {
@@ -15,7 +17,7 @@ import type {
   RecoveryBoilerInputs,
 } from "@/lib/types";
 import { DEFAULT_INPUTS } from "@/lib/defaults";
-import { calculate } from "@/lib/api";
+import { calculate, fetchMillConfig } from "@/lib/api";
 
 export interface DTInputState {
   ww_flow_gpm: number;
@@ -30,6 +32,7 @@ interface AppState {
   results: CalculationResponse | null;
   loading: boolean;
   error: string | null;
+  configReady: boolean;
   millConfig: MillConfig | null;
   fiberlineInputs: Record<string, FiberlineInputState>;
   rbInputs: Record<string, RecoveryBoilerInputs>;
@@ -54,10 +57,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [results, setResults] = useState<CalculationResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [configReady, setConfigReady] = useState(false);
   const [millConfig, setMillConfigRaw] = useState<MillConfig | null>(null);
   const [fiberlineInputs, setFiberlineInputs] = useState<Record<string, FiberlineInputState>>({});
   const [rbInputs, setRBInputs] = useState<Record<string, RecoveryBoilerInputs>>({});
   const [dtInputs, setDTInputs] = useState<Record<string, DTInputState>>({});
+  const configLoadedRef = useRef(false);
 
   const updateField = useCallback(
     <K extends keyof CalculationRequest>(key: K, value: CalculationRequest[K]) => {
@@ -238,6 +243,22 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     applyMillDefaults(config);
   }, [applyMillDefaults]);
 
+  // Auto-load mill config on mount so all pages get correct defaults
+  useEffect(() => {
+    if (configLoadedRef.current) return;
+    configLoadedRef.current = true;
+    fetchMillConfig()
+      .then((config) => {
+        setMillConfigRaw(config);
+        applyMillDefaults(config);
+        setConfigReady(true);
+      })
+      .catch((err) => {
+        console.error("Failed to load mill config:", err);
+        setConfigReady(true); // proceed with defaults on error
+      });
+  }, [applyMillDefaults]);
+
   const resetToDefaults = useCallback(() => {
     setInputs({ ...DEFAULT_INPUTS });
     setFiberlineInputs({});
@@ -318,6 +339,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         results,
         loading,
         error,
+        configReady,
         millConfig,
         fiberlineInputs,
         rbInputs,
