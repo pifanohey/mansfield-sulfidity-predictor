@@ -210,6 +210,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       // CTO
       if (d.cto_h2so4_per_ton != null) updates.cto_h2so4_per_ton = d.cto_h2so4_per_ton;
       if (d.cto_tpd != null) updates.cto_tpd = d.cto_tpd;
+      if (d.cto_naoh_per_ton != null) updates.cto_naoh_per_ton = d.cto_naoh_per_ton;
 
       // Makeup
       if (d.nash_concentration != null) updates.nash_concentration = d.nash_concentration;
@@ -233,6 +234,30 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (d.glc_underflow_solids_pct != null) updates.glc_underflow_solids_pct = d.glc_underflow_solids_pct;
       if (d.grits_lb_bdt != null) updates.grits_lb_bdt = d.grits_lb_bdt;
       if (d.grits_solids_pct != null) updates.grits_solids_pct = d.grits_solids_pct;
+
+      // Loss table (config uses loss_<source>_s / loss_<source>_na keys)
+      const lossKeys = [
+        'pulp_washable_soda', 'pulp_bound_soda', 'pulp_mill_spills', 'evap_spill',
+        'rb_ash', 'rb_stack', 'dregs_filter', 'grits', 'weak_wash_overflow', 'ncg',
+        'recaust_spill', 'rb_dump_tank', 'kiln_scrubber', 'truck_out_gl', 'unaccounted',
+      ] as const;
+      const hasAnyLoss = lossKeys.some(
+        (k) => (d as Record<string, unknown>)[`loss_${k}_s`] != null
+      );
+      if (hasAnyLoss && prev.loss_table) {
+        const lt = { ...prev.loss_table };
+        for (const k of lossKeys) {
+          const sVal = (d as Record<string, unknown>)[`loss_${k}_s`];
+          const naVal = (d as Record<string, unknown>)[`loss_${k}_na`];
+          if (sVal != null || naVal != null) {
+            lt[k] = {
+              s_lb_bdt: (sVal as number) ?? lt[k].s_lb_bdt,
+              na_lb_bdt: (naVal as number) ?? lt[k].na_lb_bdt,
+            };
+          }
+        }
+        updates.loss_table = lt;
+      }
 
       return { ...prev, ...updates };
     });
