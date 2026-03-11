@@ -1167,11 +1167,35 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
                 **gl_kwargs,
             )
 
+        # ── Dead load Na2SO4 correction ──
+        # The forward leg tracks S only through Na2S (TTA component). But Na2SO4
+        # dead load (unreduced S from RB) also cycles through WL → digester → BL.
+        # At high RE (95%), this is negligible. At low RE (82%), it raises BL S%
+        # by ~1 percentage point, significantly affecting smelt sulfidity.
+        #
+        # Steady-state analytical formula:
+        #   d = max(0, (S_tracked + CTO_S - S_losses) × (1-RE)/RE)
+        #
+        # Derivation: In each cycle, (1-RE) fraction of total BL S becomes dead
+        # load Na2SO4. At steady state, the dead load is replenished by incomplete
+        # reduction and drained by S losses. Solving for equilibrium gives the
+        # formula above, where S_tracked is the Na2S-based S from the forward leg.
+        s_tracked_lb_hr = sum(bl.s_element_lb_hr for bl in bl_outputs.values())
+        avg_re = sum(
+            rb.defaults.get('reduction_eff_pct', re_pct) for rb in rb_configs
+        ) / len(rb_configs) / 100.0  # Convert % to fraction
+        net_s_for_dead_load = s_tracked_lb_hr + cto_s_lb_hr - total_s_losses_element_lb_hr
+        if net_s_for_dead_load > 0 and avg_re > 0 and avg_re < 1:
+            dead_load_s_lb_hr = net_s_for_dead_load * (1 - avg_re) / avg_re
+        else:
+            dead_load_s_lb_hr = 0.0
+
         mixed_wbl = mix_wbl_streams(
             bl_outputs=list(bl_outputs.values()),
             cto_na_lb_hr=cto_na_lb_hr,
             cto_s_lb_hr=cto_s_lb_hr,
             cto_water_lb_hr=cto_water_lb_hr,
+            dead_load_s_lb_hr=dead_load_s_lb_hr,
         )
 
         sbl_output = calculate_evaporator(mixed_wbl, target_tds_pct=target_sbl_tds)
