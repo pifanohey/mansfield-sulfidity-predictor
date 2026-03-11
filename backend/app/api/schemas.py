@@ -222,8 +222,9 @@ class CalculationRequest(BaseModel):
             d['bl_tank_tds'] = self.bl_tank_properties.tds
             d['bl_tank_temp'] = self.bl_tank_properties.temp
 
-        # RB
-        if self.recovery_boiler:
+        # RB — only set flat keys when NOT using multi-RB config,
+        # otherwise the flat values trigger per-RB override logic in the orchestrator
+        if self.recovery_boiler and not self.recovery_boilers:
             rb = self.recovery_boiler
             d['bl_flow_gpm'] = rb.bl_flow_gpm
             d['bl_tds_pct'] = rb.bl_tds_pct
