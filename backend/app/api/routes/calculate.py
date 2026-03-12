@@ -253,7 +253,7 @@ def calculate(request: CalculationRequest):
 
 def _coerce_overrides(overrides: Dict[str, Any], base_inputs: Dict[str, Any]) -> Dict[str, Any]:
     """Convert raw override dicts to engine-compatible objects where needed."""
-    from ..engine.mill_profile import FiberlineConfig, RecoveryBoilerConfig, DissolvingTankConfig, get_mill_config
+    from ...engine.mill_profile import FiberlineConfig, RecoveryBoilerConfig, DissolvingTankConfig, get_mill_config
     result = dict(overrides)
 
     # Fiberlines: convert plain dicts to FiberlineConfig objects
