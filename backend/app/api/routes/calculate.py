@@ -251,6 +251,38 @@ def calculate(request: CalculationRequest):
     return _build_response(results, engine_inputs)
 
 
+def _coerce_overrides(overrides: Dict[str, Any], base_inputs: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert raw override dicts to engine-compatible objects where needed."""
+    from ..engine.mill_profile import FiberlineConfig, RecoveryBoilerConfig, DissolvingTankConfig, get_mill_config
+    result = dict(overrides)
+
+    # Fiberlines: convert plain dicts to FiberlineConfig objects
+    if 'fiberlines' in result and result['fiberlines']:
+        mill = get_mill_config()
+        fl_map = {fl.id: fl for fl in mill.fiberlines}
+        configs = []
+        for fl_dict in result['fiberlines']:
+            fl_id = fl_dict.get('id', '') if isinstance(fl_dict, dict) else fl_dict.id
+            mill_fl = fl_map.get(fl_id)
+            if mill_fl:
+                defaults = dict(mill_fl.defaults)
+                if isinstance(fl_dict, dict):
+                    for k in ('production_bdt_day', 'yield_pct', 'ea_pct', 'gl_ea_pct'):
+                        if k in fl_dict and fl_dict[k] is not None:
+                            defaults[k] = fl_dict[k]
+                configs.append(FiberlineConfig(
+                    id=mill_fl.id, name=mill_fl.name, type=mill_fl.type,
+                    cooking_type=mill_fl.cooking_type,
+                    uses_gl_charge=mill_fl.uses_gl_charge,
+                    defaults=defaults,
+                ))
+            elif not isinstance(fl_dict, dict):
+                configs.append(fl_dict)  # already a FiberlineConfig
+        result['fiberlines'] = configs
+
+    return result
+
+
 @router.post("/calculate/what-if", response_model=WhatIfResponse)
 def calculate_what_if(request: WhatIfRequest):
     base_inputs = request.base.to_engine_inputs()
@@ -260,7 +292,7 @@ def calculate_what_if(request: WhatIfRequest):
         logger.exception("Engine error in /calculate/what-if (base)")
         raise HTTPException(status_code=422, detail=f"Base calculation failed: {e}")
 
-    scenario_inputs = {**base_inputs, **request.overrides}
+    scenario_inputs = {**base_inputs, **_coerce_overrides(request.overrides, base_inputs)}
     try:
         scenario_results = run_calculations(scenario_inputs)
     except Exception as e:
