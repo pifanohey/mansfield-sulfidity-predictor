@@ -903,8 +903,9 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
         ww_sulfidity = combined_dt['ww_sulfidity']
         shower_flow = combined_dt['shower_flow_gpm']
         smelt_density = combined_dt['smelt_density_lb_ft3']
-        gl_target_tta_lb_ft3 = combined_dt['gl_target_tta_lb_ft3']
-        gl_causticity = combined_dt['gl_causticity']
+        # gl_target_tta_lb_ft3 and gl_causticity are system-wide params,
+        # already read from inputs at lines 714-715 with mill-specific values.
+        # Do NOT overwrite with DEFAULTS (Pine Hill hardcoded values).
 
     # ── CTO S delta adjustment for initial BL composition ──
     # CTO S enters via WBL mixer (forward leg, end of outer loop iteration).
