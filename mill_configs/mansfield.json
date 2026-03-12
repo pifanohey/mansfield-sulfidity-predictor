@@ -12,7 +12,8 @@
         "production_bdt_day": 1421.0,
         "yield_pct": 0.5672,
         "ea_pct": 0.142,
-        "wood_moisture": 0.5266
+        "wood_moisture": 0.5266,
+        "wash_water_gpm": 572.0
       }
     },
     {
@@ -25,7 +26,8 @@
         "production_bdt_day": 411.0,
         "yield_pct": 0.5777,
         "ea_pct": 0.1359,
-        "wood_moisture": 0.5266
+        "wood_moisture": 0.5266,
+        "wash_water_gpm": 150.0
       }
     },
     {
@@ -40,7 +42,8 @@
         "ea_pct": 0.0385,
         "gl_ea_pct": 0.0161,
         "gl_wl_ratio": 1.529,
-        "wood_moisture": 0.4441
+        "wood_moisture": 0.4441,
+        "wash_water_gpm": 615.0
       }
     }
   ],
@@ -146,6 +149,9 @@
     "cto_h2so4_per_ton": 391.0,
     "cto_tpd": 117.5,
     "cto_naoh_per_ton": 193.0,
+
+    "wash_water_na_pct": 0.0470,
+    "wash_water_s_pct": 0.01118,
 
     "cooking_wl_sulfidity": 0.258,
 

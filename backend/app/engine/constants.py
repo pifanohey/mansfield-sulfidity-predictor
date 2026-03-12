@@ -241,6 +241,14 @@ DEFAULTS = {
     'cto_h2so4_per_ton': 360.0,  # C9 — lb H2SO4/T CTO
     'cto_tpd': 26.68,            # C10 — TPD
 
+    # ── Wash water Na/S return (paper machine white water to brownstock washers) ──
+    # White water carries residual Na and S back into the washing circuit.
+    # Na and S concentrations are % by weight of the white water.
+    # Per-fiberline wash_water_gpm is in each FiberlineConfig.defaults.
+    # Pine Hill: no wash water data available → defaults to 0 gpm per fiberline.
+    'wash_water_na_pct': 0.0,    # % by weight Na in wash water (0 = no WW return)
+    'wash_water_s_pct': 0.0,     # % by weight S in wash water (0 = no WW return)
+
     # Cooking
     'cooking_wl_sulfidity': 0.283,
 

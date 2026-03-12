@@ -177,6 +177,7 @@ def _run_inner_loop(
     intrusion_water, dilution_water, wlc_underflow_solids, wlc_mud_density,
     s_deficit_override,
     cto_na_lb_hr=0.0,  # CTO NaOH Na return (element Na lb/hr) — subtracted from Na deficit
+    ww_na_lb_hr=0.0,   # Wash water Na return (element Na lb/hr) — subtracted from Na deficit
     nash_override=None,  # Override NaSH (lb/hr) for Secant iteration
     naoh_dry_override=None,  # Override NaOH (lb/hr) — bypasses dual-constraint
     # Dregs filter parameters (for WW flow solve)
@@ -398,12 +399,13 @@ def _run_inner_loop(
 
         # --- Constraint 1: NaOH for Na LOSSES (mass balance) ---
         # Na_losses from unified loss table (static, based on production)
-        # Na inputs: saltcake + NaSH + CTO NaOH brine return
+        # Na inputs: saltcake + NaSH + CTO NaOH brine return + wash water return
         saltcake_na_as_na2o = saltcake_na * MW['Na2O'] / (2 * MW['Na'])
         na_from_nash_na2o = nash_dry * CONV['NaSH_to_Na2O']
         cto_na_as_na2o = cto_na_lb_hr * CONV['Na_to_Na2O']  # CTO NaOH Na return
+        ww_na_as_na2o = ww_na_lb_hr * CONV['Na_to_Na2O']    # Wash water Na return
 
-        na_deficit_for_losses = max(0.0, total_na_losses_as_na2o_lb_hr - saltcake_na_as_na2o - na_from_nash_na2o - cto_na_as_na2o)
+        na_deficit_for_losses = max(0.0, total_na_losses_as_na2o_lb_hr - saltcake_na_as_na2o - na_from_nash_na2o - cto_na_as_na2o - ww_na_as_na2o)
         naoh_for_losses = na_deficit_for_losses / CONV['NaOH_to_Na2O'] if CONV['NaOH_to_Na2O'] > 0 else 0.0
 
         # --- Constraint 2: NaOH for EA DEMAND (digester requirement) ---
@@ -499,7 +501,7 @@ def _run_inner_loop(
         adjusted_na_losses = total_na_losses_as_na2o_lb_hr + ce_na_adjustment_lb_hr
 
         # Recompute NaOH for losses with CE-adjusted Na losses
-        na_deficit_for_losses = max(0.0, adjusted_na_losses - saltcake_na_as_na2o - na_from_nash_na2o - cto_na_as_na2o)
+        na_deficit_for_losses = max(0.0, adjusted_na_losses - saltcake_na_as_na2o - na_from_nash_na2o - cto_na_as_na2o - ww_na_as_na2o)
         naoh_for_losses = na_deficit_for_losses / CONV['NaOH_to_Na2O'] if CONV['NaOH_to_Na2O'] > 0 else 0.0
 
         # --- Final NaOH: override or maximum of both constraints ---
@@ -657,6 +659,7 @@ def _run_inner_loop(
         'ce_na_adjustment_lb_hr': ce_na_adjustment_lb_hr,
         'adjusted_na_losses_lb_hr': adjusted_na_losses,
         'cto_na_as_na2o_lb_hr': cto_na_as_na2o,
+        'ww_na_as_na2o_lb_hr': ww_na_as_na2o,
         # WW flow solve & dregs filter
         'ww_flow_solved_gpm': ww_flow_solved,
         'dregs_filtrate_gpm': dregs_filtrate_gpm,
@@ -767,6 +770,19 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
     cto_na_lb_hr = cto_naoh_lb_hr * (MW['Na'] / MW['NaOH'])  # element Na
     # CTO brine water: approximate — small relative to WBL water
     cto_water_lb_hr = inputs.get('cto_water_lb_hr', 500.0)
+
+    # ── Wash water Na/S return (paper machine white water to brownstock washers) ──
+    # White water carries residual Na and S back into the washing circuit.
+    # Computed from per-fiberline wash_water_gpm × global concentration.
+    ww_na_pct = inputs.get('wash_water_na_pct', DEFAULTS.get('wash_water_na_pct', 0.0))
+    ww_s_pct = inputs.get('wash_water_s_pct', DEFAULTS.get('wash_water_s_pct', 0.0))
+    total_wash_water_gpm = sum(
+        fl.defaults.get('wash_water_gpm', 0.0) for fl in fiberline_configs
+    )
+    # Convert GPM → lb/hr (water density ~8.345 lb/gal)
+    wash_water_lb_hr = total_wash_water_gpm * 8.345 * 60
+    ww_na_lb_hr = wash_water_lb_hr * ww_na_pct / 100  # element Na (lb/hr)
+    ww_s_lb_hr = wash_water_lb_hr * ww_s_pct / 100    # element S (lb/hr)
 
     target_sulf_pct = inputs.get('target_sulfidity_pct', DEFAULTS['target_sulfidity_pct'])
     cooking_sulf = inputs.get('cooking_wl_sulfidity', DEFAULTS['cooking_wl_sulfidity'])
@@ -1021,9 +1037,9 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
         saltcake_na_element_lb_hr = rb_inputs.saltcake_na_lbs_hr
         saltcake_s_element_lb_hr = rb_inputs.saltcake_s_lbs_hr
 
-        # S deficit: total S losses minus S already returned via saltcake and CTO
+        # S deficit: total S losses minus S already returned via saltcake, CTO, and wash water
         total_s_losses_element_lb_hr = loss_breakdown.total_s_lb_bdt * total_prod / 24
-        s_deficit_element_lb_hr = total_s_losses_element_lb_hr - saltcake_s_element_lb_hr - cto_s_lb_hr
+        s_deficit_element_lb_hr = total_s_losses_element_lb_hr - saltcake_s_element_lb_hr - cto_s_lb_hr - ww_s_lb_hr
         s_deficit_as_na2o_lb_hr = max(0.0, s_deficit_element_lb_hr * (MW['Na2O'] / MW['S']))
 
         # ══════════════════════════════════════════════════════════════════════════
@@ -1036,6 +1052,7 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
         inner_loop_kwargs = dict(
             smelt=smelt, saltcake_na=saltcake_na_element_lb_hr, saltcake_s=saltcake_s_element_lb_hr,
             cto_s=cto_s_lb_hr, cto_na_lb_hr=cto_na_lb_hr,
+            ww_na_lb_hr=ww_na_lb_hr,
             ww_flow=ww_flow, ww_tta_lb_ft3=ww_tta_lb_ft3,
             ww_sulfidity=ww_sulfidity, shower_flow=shower_flow,
             smelt_density=smelt_density,
@@ -1187,7 +1204,7 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
         avg_re = sum(
             rb.defaults.get('reduction_eff_pct', re_pct) for rb in rb_configs
         ) / len(rb_configs) / 100.0  # Convert % to fraction
-        net_s_for_dead_load = s_tracked_lb_hr + cto_s_lb_hr - total_s_losses_element_lb_hr
+        net_s_for_dead_load = s_tracked_lb_hr + cto_s_lb_hr + ww_s_lb_hr - total_s_losses_element_lb_hr
         if net_s_for_dead_load > 0 and avg_re > 0 and avg_re < 1:
             dead_load_s_lb_hr = net_s_for_dead_load * (1 - avg_re) / avg_re
         else:
@@ -1195,8 +1212,8 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
 
         mixed_wbl = mix_wbl_streams(
             bl_outputs=list(bl_outputs.values()),
-            cto_na_lb_hr=cto_na_lb_hr,
-            cto_s_lb_hr=cto_s_lb_hr,
+            cto_na_lb_hr=cto_na_lb_hr + ww_na_lb_hr,  # WW Na enters BL via washer filtrate
+            cto_s_lb_hr=cto_s_lb_hr + ww_s_lb_hr,     # WW S enters BL via washer filtrate
             cto_water_lb_hr=cto_water_lb_hr,
             dead_load_s_lb_hr=dead_load_s_lb_hr,
         )
@@ -1432,6 +1449,9 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
     results['cto_h2so4_per_ton'] = cto_h2so4_per_ton
     results['cto_tpd'] = cto_tpd
     results['cto_na_lb_hr'] = cto_na_lb_hr
+    results['ww_na_lb_hr'] = ww_na_lb_hr
+    results['ww_s_lb_hr'] = ww_s_lb_hr
+    results['wash_water_gpm'] = total_wash_water_gpm
 
     # Per-source losses (13 rows with S + Na2O columns)
     results['loss_table_detail'] = calculate_losses_detailed(total_prod, loss_breakdown)
