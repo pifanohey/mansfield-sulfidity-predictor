@@ -255,10 +255,12 @@ def _coerce_overrides(overrides: Dict[str, Any], base_inputs: Dict[str, Any]) ->
     """Convert raw override dicts to engine-compatible objects where needed."""
     from ...engine.mill_profile import FiberlineConfig, RecoveryBoilerConfig, DissolvingTankConfig, get_mill_config
     result = dict(overrides)
+    needs_mill = ('fiberlines' in result and result['fiberlines']) or \
+                 ('recovery_boilers' in result and result['recovery_boilers'])
+    mill = get_mill_config() if needs_mill else None
 
     # Fiberlines: convert plain dicts to FiberlineConfig objects
     if 'fiberlines' in result and result['fiberlines']:
-        mill = get_mill_config()
         fl_map = {fl.id: fl for fl in mill.fiberlines}
         configs = []
         for fl_dict in result['fiberlines']:
@@ -279,6 +281,29 @@ def _coerce_overrides(overrides: Dict[str, Any], base_inputs: Dict[str, Any]) ->
             elif not isinstance(fl_dict, dict):
                 configs.append(fl_dict)  # already a FiberlineConfig
         result['fiberlines'] = configs
+
+    # Recovery boilers: convert plain dicts to RecoveryBoilerConfig objects
+    if 'recovery_boilers' in result and result['recovery_boilers']:
+        rb_map = {rb.id: rb for rb in mill.recovery_boilers}
+        rb_configs = []
+        for rb_dict in result['recovery_boilers']:
+            rb_id = rb_dict.get('id', '') if isinstance(rb_dict, dict) else rb_dict.id
+            mill_rb = rb_map.get(rb_id)
+            if mill_rb:
+                defaults = dict(mill_rb.defaults)
+                if isinstance(rb_dict, dict):
+                    for k in ('bl_flow_gpm', 'bl_tds_pct', 'bl_temp_f',
+                              'reduction_eff_pct', 'ash_recycled_pct', 'saltcake_flow_lb_hr'):
+                        if k in rb_dict and rb_dict[k] is not None:
+                            defaults[k] = rb_dict[k]
+                rb_configs.append(RecoveryBoilerConfig(
+                    id=mill_rb.id, name=mill_rb.name,
+                    paired_dt_id=mill_rb.paired_dt_id,
+                    defaults=defaults,
+                ))
+            elif not isinstance(rb_dict, dict):
+                rb_configs.append(rb_dict)
+        result['recovery_boilers'] = rb_configs
 
     return result
 

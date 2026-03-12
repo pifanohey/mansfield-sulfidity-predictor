@@ -22,10 +22,26 @@ interface PredictorParam {
 
 /** Build predictor params dynamically from mill config fiberlines. */
 function buildParams(millConfig: MillConfig | null): PredictorParam[] {
-  const params: PredictorParam[] = [
-    { key: "reduction_eff_pct", label: "Reduction Efficiency", unit: "%", min: 75, max: 99, step: 0.5 },
-    { key: "causticity_pct", label: "Causticity", unit: "%", min: 70, max: 90, step: 0.5 },
-  ];
+  const params: PredictorParam[] = [];
+
+  // Per-RB reduction efficiency sliders (or single if 1 RB)
+  const rbs = millConfig?.recovery_boilers ?? [];
+  if (rbs.length > 1) {
+    for (const rb of rbs) {
+      params.push({
+        key: `rb_${rb.id}_re`,
+        label: `${rb.name} RE`,
+        unit: "%",
+        min: 75,
+        max: 99,
+        step: 0.5,
+      });
+    }
+  } else {
+    params.push({ key: "reduction_eff_pct", label: "Reduction Efficiency", unit: "%", min: 75, max: 99, step: 0.5 });
+  }
+
+  params.push({ key: "causticity_pct", label: "Causticity", unit: "%", min: 70, max: 90, step: 0.5 });
 
   const fiberlines = millConfig?.fiberlines ?? [];
   for (const fl of fiberlines) {
@@ -57,6 +73,12 @@ function getBaseValue(
   if (param.key === "reduction_eff_pct") {
     return inputs.recovery_boiler?.reduction_eff_pct ?? 95.0;
   }
+  // Per-RB reduction efficiency: rb_<id>_re
+  const rbMatch = param.key.match(/^rb_(.+)_re$/);
+  if (rbMatch) {
+    const rbId = rbMatch[1];
+    return inputs.recovery_boilers?.find((rb) => rb.id === rbId)?.reduction_eff_pct ?? 95.0;
+  }
   if (param.key === "saltcake_flow_lb_hr") {
     return inputs.recovery_boiler?.saltcake_flow_lb_hr ?? 2227.0;
   }
@@ -84,12 +106,18 @@ function buildOverrides(
   const result: Record<string, unknown> = {};
   let needsFiberlineOverride = false;
   const flProductionOverrides: Record<string, number> = {};
+  let needsRBOverride = false;
+  const rbREOverrides: Record<string, number> = {};
 
   for (const [key, value] of Object.entries(overrides)) {
     const flMatch = key.match(/^fl_(.+)_production$/);
+    const rbMatch = key.match(/^rb_(.+)_re$/);
     if (flMatch) {
       needsFiberlineOverride = true;
       flProductionOverrides[flMatch[1]] = value;
+    } else if (rbMatch) {
+      needsRBOverride = true;
+      rbREOverrides[rbMatch[1]] = value;
     } else {
       result[key] = value;
     }
@@ -103,6 +131,16 @@ function buildOverrides(
       return fl;
     });
     result["fiberlines"] = fiberlines;
+  }
+
+  if (needsRBOverride && inputs.recovery_boilers) {
+    const recovery_boilers = inputs.recovery_boilers.map((rb) => {
+      if (rbREOverrides[rb.id] !== undefined) {
+        return { ...rb, reduction_eff_pct: rbREOverrides[rb.id] };
+      }
+      return rb;
+    });
+    result["recovery_boilers"] = recovery_boilers;
   }
 
   return result;
