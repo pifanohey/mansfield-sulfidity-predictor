@@ -290,7 +290,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setRBInputs({});
     setDTInputs({});
     setResults(null);
-  }, []);
+    // Re-apply mill config defaults so we don't fall back to Pine Hill hardcoded values
+    if (millConfig) {
+      applyMillDefaults(millConfig);
+    }
+  }, [millConfig, applyMillDefaults]);
 
   const runCalculation = useCallback(
     async (overrideInputs?: CalculationRequest) => {
