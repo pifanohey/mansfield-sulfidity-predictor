@@ -102,7 +102,7 @@
   "defaults": {
     "target_sulfidity_pct": 25.8,
     "reduction_efficiency_pct": 83.7,
-    "causticity_pct": 81.0,
+    "causticity_pct": 77.7,
 
     "nash_concentration": 0.40,
     "naoh_concentration": 0.50,
