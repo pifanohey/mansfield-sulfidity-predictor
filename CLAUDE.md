@@ -434,8 +434,10 @@ This Na is added to the WBL mixer alongside CTO acid Na.
 | Fiberlines | kraft_pine1 (1421 BDT), kraft_pine2 (411 BDT), semichem (783 BDT) |
 | Recovery Boilers | 2 (RE: 83.7%, 81.4%) |
 | Dissolving Tanks | 2 (387 gpm WW each) |
+| Causticity | 77.7% |
 | Target Sulfidity | 25.8% |
 | Expected NaSH Dry | ~1,762 lb/hr (~15.87 lb/BDT) |
+| Model NaSH Dry | ~1,631 lb/hr (7.4% gap — loss table needs per-mill calibration) |
 | CTO NaOH | 193 lb/ton (Na returns via brine) |
 | Semichem GL EA% | 1.61% (gl_ea_pct: 0.0161) |
 | Semichem WL EA% | 3.85% (ea_pct: 0.0385) |
@@ -490,12 +492,58 @@ Tolerance: 0.01% relative error. **Must pass after every change.**
 
 # ADDING A NEW MILL
 
+## Basic Steps
 1. Create `mill_configs/your_mill.json` with fiberlines, recovery_boilers, dissolving_tanks, tanks, defaults
 2. Set `MILL_CONFIG=your_mill` env var
 3. Deploy — the frontend auto-loads config from `GET /api/mill-config`
 4. Non-fiberline parameters (BL, losses, etc.) come from JSON `defaults` or fall back to `constants.py` DEFAULTS
 5. For multi-RB mills: define each RB with `paired_dt_id` and each DT with `paired_rb_id`
 6. For CTO NaOH return: set `cto_naoh_per_ton` in defaults (0 if no NaOH added in tall oil plant)
+
+## Migration Checklist (Lessons from Mansfield Deployment)
+
+The following issues were discovered deploying Mansfield. **Check every item when adding a new mill.**
+
+### Config Data Validation
+- [ ] **Verify gl_ea_pct vs ea_pct for semichem lines** — these are different values. `ea_pct` is WL EA charge (e.g., 3.85%), `gl_ea_pct` is GL EA charge (e.g., 1.61%). Copy-paste errors here cause GL charge to be 2-3× too high.
+- [ ] **Verify causticity_pct** — don't assume 81% (Pine Hill default). Each mill has its own value.
+- [ ] **Verify cto_naoh_per_ton** — 0 for mills with no NaOH in tall oil acidulation. Non-zero values (e.g., 193 for Mansfield) significantly affect Na/S balance.
+- [ ] **Verify per-RB reduction efficiencies** — each RB may have different RE values. Don't use a single global RE for multi-RB mills.
+- [ ] **Config key naming**: JSON uses `reduction_efficiency_pct`, engine uses `reduction_eff_pct`. The frontend `applyMillDefaults()` maps between them.
+
+### Frontend — State & Defaults
+- [ ] **Mill config loads globally on mount** — `AppStateProvider` fetches config via `useEffect` and gates all pages with `configReady`. If this is broken, the first calculation runs with Pine Hill hardcoded defaults from `defaults.ts`.
+- [ ] **`applyMillDefaults()` must map ALL config defaults** — every new config key needs a mapping in this function. Missing keys (like `cto_naoh_per_ton` was) cause the frontend to use Pine Hill fallback values silently.
+- [ ] **Loss table mapping** — config uses flat `loss_<source>_s` / `loss_<source>_na` keys; `applyMillDefaults()` converts these to the nested `LossTable` structure.
+- [ ] **`resetToDefaults()` must re-apply mill config** — after resetting to `DEFAULT_INPUTS`, it must call `applyMillDefaults(millConfig)` or users get Pine Hill values.
+- [ ] **`buildFullRequest()` used for all API calls** — raw `inputs` state is missing fiberlines, multi-RB/DT arrays. The `buildFullRequest()` function in `useAppState` combines inputs + mill config and must be used by Scenarios (what-if, predictor) and any other consumer. Never pass raw `inputs` to API calls.
+
+### Frontend — Dynamic Components
+- [ ] **No hardcoded fiberline IDs** — components must loop over `millConfig.fiberlines` or `fiberline_ids` from results. Never reference `'pine'`, `'semichem'`, etc. by name.
+- [ ] **Scenario PARAMS built from config** — `ScenarioBuilder` and `SulfidityPredictor` dynamically generate fiberline production sliders from `millConfig.fiberlines`. Slider min/max are derived from each fiberline's default production (±50%/+30%).
+- [ ] **Slider ranges must accommodate the mill** — e.g., RE slider min was 85% but Mansfield uses 81.4%. Now set to 75% minimum.
+- [ ] **Mill name dynamic everywhere** — TopNav, Sidebar, breadcrumbs read from `useMillConfig()`.
+- [ ] **BL composition charts** — must use dynamic fiberline IDs from results, not hardcoded IDs.
+- [ ] **GL sulfidity display** — use `gl_sulfidity_pct` (Na₂O-based %) not `gl_sulfidity` (raw fraction).
+
+### Backend — Multi-RB/DT
+- [ ] **Flat RB keys skipped for multi-RB** — `to_engine_inputs()` must NOT set flat keys (`reduction_eff_pct`, `bl_flow_gpm`, etc.) when `self.recovery_boilers` is present. Otherwise the orchestrator's override logic (`if 'reduction_eff_pct' in inputs`) forces all RBs to the same value.
+- [ ] **What-if endpoint override safety** — the what-if merges `{**base_inputs, **overrides}` directly. Flat overrides like `reduction_eff_pct` will trigger the orchestrator's per-RB override, potentially corrupting multi-RB calculations.
+- [ ] **Per-RB production splitting** — each RB gets a proportional share of total production based on BL flow fraction. Verify flow fractions sum to ~100%.
+
+### Deployment
+- [ ] **Render free tier spins down after 15min** — causes 30-60s cold starts. Upgrade to Starter ($7/mo) or add a keep-alive ping.
+- [ ] **`PYTHON_VERSION=3.11.11`** — Render requires full semver, not just `3.11`.
+- [ ] **`MILL_CONFIG` env var set** — without it, defaults to `pine_hill`.
+- [ ] **Separate repo/deployment per mill** — Mansfield has its own GitHub repo, Render service, and Vercel project. Pine Hill V1 is completely separate and untouched.
+
+### Validation After Deployment
+- [ ] Run base calculation — verify NaSH, NaOH, sulfidity match expected values
+- [ ] Test Reset button — should return to mill config defaults, not Pine Hill
+- [ ] Test Scenarios what-if — perturb RE, target sulfidity, production; verify directional correctness
+- [ ] Test Scenarios predictor — fix NaSH/NaOH, vary parameters; verify sulfidity responds correctly
+- [ ] Verify per-RB results (if multi-RB) — each RB should show independent RE and smelt sulfidity
+- [ ] Check all pages load correctly without navigating to Inputs first
 
 ---
 
@@ -526,6 +574,15 @@ Tolerance: 0.01% relative error. **Must pass after every change.**
 | Dynamic fiberline WL bars | RecaustFlowDiagram reads fiberline_ids from intermediate dict |
 | Mill config defaults | applyMillDefaults() maps JSON defaults to frontend state with g/L→lb/ft³ conversion |
 | intermediate dict typing | Changed from Record<string, number> to Record<string, any> for mixed types |
+| Global mill config loading | Config was only loaded on Inputs page → moved to AppStateProvider with configReady gating |
+| cto_naoh_per_ton mapping | Was missing from applyMillDefaults → NaSH off by ~200 lb/hr for Mansfield |
+| Loss table from config | applyMillDefaults now maps flat loss_*_s/loss_*_na keys to LossTable structure |
+| Multi-RB flat override conflict | to_engine_inputs() skips flat RB keys when recovery_boilers array is present |
+| Reset to mill defaults | resetToDefaults() re-applies mill config after clearing, not just Pine Hill defaults |
+| Mansfield causticity | Was 81.0% (Pine Hill default), corrected to 77.7% |
+| Scenarios use buildFullRequest | What-if/Predictor now use full request with mill config fiberlines + multi-RB/DT |
+| Dynamic scenario params | ScenarioBuilder/SulfidityPredictor build PARAMS from mill config fiberlines |
+| Slider ranges widened | RE min 85→75% to accommodate low-RE mills like Mansfield (81.4%) |
 
 ---
 
