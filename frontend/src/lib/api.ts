@@ -159,7 +159,7 @@ async function fetchExportBlob(
       inputs,
       results,
       sensitivity_items: sensitivityItems ?? null,
-      mill_name: millName ?? "Pine Hill Mill",
+      mill_name: millName ?? "Mill",
     }),
   });
   if (!res.ok) {

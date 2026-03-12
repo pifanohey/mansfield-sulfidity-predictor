@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 # Sulfidity Predictor V2 — Multi-Mill Architecture
 
 ## What This Is
@@ -20,7 +24,15 @@ cd frontend && npm run dev    # port 3005
 
 ## Running Tests
 ```bash
-cd backend && python3 -m pytest tests/ -v    # 249 tests, ALL passing
+cd backend && python3 -m pytest tests/ -v                        # All tests (249)
+cd backend && python3 -m pytest tests/test_golden_regression.py -v  # Single file
+cd backend && python3 -m pytest tests/test_golden_regression.py::TestGoldenRegression::test_final_sulfidity -v  # Single test
+```
+
+## Lint & Build
+```bash
+cd frontend && npm run lint      # ESLint (Next.js config)
+cd frontend && npm run build     # Next.js production build (also type-checks)
 ```
 
 ---

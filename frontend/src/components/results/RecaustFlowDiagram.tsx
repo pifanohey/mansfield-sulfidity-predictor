@@ -70,12 +70,15 @@ export default function RecaustFlowDiagram({
     id,
     gpm: (im[`${id}_wl_demand_gpm`] as number) ?? 0,
   }));
-  // Fallback for legacy single-mill (Pine Hill)
+  // Fallback: scan intermediate dict for any *_wl_demand_gpm keys
   if (flDemands.length === 0) {
-    const pineDemand = im.pine_wl_demand_gpm ?? 0;
-    const semiDemand = im.semichem_wl_demand_gpm ?? 0;
-    if (pineDemand > 0) flDemands.push({ id: "pine", gpm: pineDemand });
-    if (semiDemand > 0) flDemands.push({ id: "semichem", gpm: semiDemand });
+    for (const key of Object.keys(im)) {
+      const m = key.match(/^(.+)_wl_demand_gpm$/);
+      if (m) {
+        const val = (im[key] as number) ?? 0;
+        if (val > 0) flDemands.push({ id: m[1], gpm: val });
+      }
+    }
   }
   const finalTTA       = im.final_wl_tta_g_L ?? 0;
   const finalNa2S      = im.final_wl_na2s_g_L ?? 0;

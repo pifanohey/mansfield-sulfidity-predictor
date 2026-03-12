@@ -91,7 +91,7 @@ export default function InputsPage() {
   const makeupLabel = millConfig
     ? MAKEUP_LABELS[millConfig.makeup_chemical] ?? millConfig.makeup_chemical
     : "NaSH";
-  const millName = millConfig?.mill_name ?? "Pine Hill";
+  const millName = millConfig?.mill_name ?? "Mill";
 
   const handleCalculate = async () => {
     const res = await runCalculation();

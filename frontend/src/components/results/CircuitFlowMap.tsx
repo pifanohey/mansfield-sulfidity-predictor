@@ -119,8 +119,6 @@ export default function CircuitFlowMap({
     unitOperations.find((r) => r.stage.startsWith(prefix));
 
   const wlToDigesters = findStage("White Liquor (to");
-  const pineBL = findStage("Pine");
-  const semichem = findStage("Semichem");
   const mixedWBL = findStage("Mixed");
   const evaporator = findStage("Evaporator");
   const smelt = findStage("Recovery Boiler");
@@ -207,26 +205,27 @@ export default function CircuitFlowMap({
             </div>
           </div>
 
-          {/* BL source detail */}
-          {(pineBL || semichem) && (
-            <div className="mt-4 pt-3 border-t border-white/[0.06]">
-              <div className="font-mono text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground mb-2">BL Sources:</div>
-              <div className="flex gap-2 flex-wrap">
-                {pineBL && (
-                  <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5 font-mono text-xs min-w-[160px]">
-                    <div className="font-medium text-white mb-1">Pine BL</div>
-                    <div className="text-muted-foreground">Na: {fmtNum(pineBL.na_lb_hr, 0)} lb/hr, S: {fmtNum(pineBL.s_lb_hr, 0)} lb/hr</div>
-                  </div>
-                )}
-                {semichem && (
-                  <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5 font-mono text-xs min-w-[160px]">
-                    <div className="font-medium text-white mb-1">Semichem BL</div>
-                    <div className="text-muted-foreground">Na: {fmtNum(semichem.na_lb_hr, 0)} lb/hr, S: {fmtNum(semichem.s_lb_hr, 0)} lb/hr</div>
-                  </div>
-                )}
+          {/* BL source detail — dynamic from unit operations */}
+          {(() => {
+            const knownPrefixes = ["White Liquor", "Mixed", "Evaporator", "Recovery Boiler", "Dissolving Tank", "Green Liquor", "Slaker"];
+            const blSources = unitOperations.filter(
+              (r) => !knownPrefixes.some((p) => r.stage.startsWith(p))
+            );
+            if (blSources.length === 0) return null;
+            return (
+              <div className="mt-4 pt-3 border-t border-white/[0.06]">
+                <div className="font-mono text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground mb-2">BL Sources:</div>
+                <div className="flex gap-2 flex-wrap">
+                  {blSources.map((bl) => (
+                    <div key={bl.stage} className="rounded-lg border border-white/[0.06] bg-white/[0.02] p-2.5 font-mono text-xs min-w-[160px]">
+                      <div className="font-medium text-white mb-1 truncate" title={bl.stage}>{bl.stage}</div>
+                      <div className="text-muted-foreground">Na: {fmtNum(bl.na_lb_hr, 0)} lb/hr, S: {fmtNum(bl.s_lb_hr, 0)} lb/hr</div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       </CardContent>
     </Card>

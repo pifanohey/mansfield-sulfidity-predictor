@@ -176,6 +176,7 @@ def _run_inner_loop(
     nash_conc, naoh_conc, nash_dens, naoh_dens,
     intrusion_water, dilution_water, wlc_underflow_solids, wlc_mud_density,
     s_deficit_override,
+    cto_na_lb_hr=0.0,  # CTO NaOH Na return (element Na lb/hr) — subtracted from Na deficit
     nash_override=None,  # Override NaSH (lb/hr) for Secant iteration
     naoh_dry_override=None,  # Override NaOH (lb/hr) — bypasses dual-constraint
     # Dregs filter parameters (for WW flow solve)
@@ -397,11 +398,12 @@ def _run_inner_loop(
 
         # --- Constraint 1: NaOH for Na LOSSES (mass balance) ---
         # Na_losses from unified loss table (static, based on production)
-        # Saltcake Na in element basis, convert to Na2O
+        # Na inputs: saltcake + NaSH + CTO NaOH brine return
         saltcake_na_as_na2o = saltcake_na * MW['Na2O'] / (2 * MW['Na'])
         na_from_nash_na2o = nash_dry * CONV['NaSH_to_Na2O']
+        cto_na_as_na2o = cto_na_lb_hr * CONV['Na_to_Na2O']  # CTO NaOH Na return
 
-        na_deficit_for_losses = max(0.0, total_na_losses_as_na2o_lb_hr - saltcake_na_as_na2o - na_from_nash_na2o)
+        na_deficit_for_losses = max(0.0, total_na_losses_as_na2o_lb_hr - saltcake_na_as_na2o - na_from_nash_na2o - cto_na_as_na2o)
         naoh_for_losses = na_deficit_for_losses / CONV['NaOH_to_Na2O'] if CONV['NaOH_to_Na2O'] > 0 else 0.0
 
         # --- Constraint 2: NaOH for EA DEMAND (digester requirement) ---
@@ -497,7 +499,7 @@ def _run_inner_loop(
         adjusted_na_losses = total_na_losses_as_na2o_lb_hr + ce_na_adjustment_lb_hr
 
         # Recompute NaOH for losses with CE-adjusted Na losses
-        na_deficit_for_losses = max(0.0, adjusted_na_losses - saltcake_na_as_na2o - na_from_nash_na2o)
+        na_deficit_for_losses = max(0.0, adjusted_na_losses - saltcake_na_as_na2o - na_from_nash_na2o - cto_na_as_na2o)
         naoh_for_losses = na_deficit_for_losses / CONV['NaOH_to_Na2O'] if CONV['NaOH_to_Na2O'] > 0 else 0.0
 
         # --- Final NaOH: override or maximum of both constraints ---
@@ -654,6 +656,7 @@ def _run_inner_loop(
         # CE flow-sensitivity adjustment
         'ce_na_adjustment_lb_hr': ce_na_adjustment_lb_hr,
         'adjusted_na_losses_lb_hr': adjusted_na_losses,
+        'cto_na_as_na2o_lb_hr': cto_na_as_na2o,
         # WW flow solve & dregs filter
         'ww_flow_solved_gpm': ww_flow_solved,
         'dregs_filtrate_gpm': dregs_filtrate_gpm,
@@ -1032,7 +1035,7 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
         # Build inner_loop_kwargs each outer iteration (smelt changes)
         inner_loop_kwargs = dict(
             smelt=smelt, saltcake_na=saltcake_na_element_lb_hr, saltcake_s=saltcake_s_element_lb_hr,
-            cto_s=cto_s_lb_hr,
+            cto_s=cto_s_lb_hr, cto_na_lb_hr=cto_na_lb_hr,
             ww_flow=ww_flow, ww_tta_lb_ft3=ww_tta_lb_ft3,
             ww_sulfidity=ww_sulfidity, shower_flow=shower_flow,
             smelt_density=smelt_density,

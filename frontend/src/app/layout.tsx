@@ -12,7 +12,7 @@ const jetbrains = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Sulfidity Predictor",
-  description: "Kraft Mill Sulfidity Predictor - Pine Hill Mill",
+  description: "Kraft Mill Sulfidity Predictor",
 };
 
 export default function RootLayout({
