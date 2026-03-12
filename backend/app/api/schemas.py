@@ -272,6 +272,10 @@ class CalculationRequest(BaseModel):
         d['cto_tpd'] = self.cto_tpd
         d['cto_naoh_per_ton'] = self.cto_naoh_per_ton
 
+        # Wash water concentrations (mill config defaults, not user-editable)
+        d['wash_water_na_pct'] = mill.defaults.get('wash_water_na_pct', 0.0)
+        d['wash_water_s_pct'] = mill.defaults.get('wash_water_s_pct', 0.0)
+
         # Setpoints
         d['target_sulfidity_pct'] = self.target_sulfidity_pct
 
