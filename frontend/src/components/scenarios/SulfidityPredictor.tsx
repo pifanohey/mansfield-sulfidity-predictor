@@ -80,6 +80,10 @@ function getBaseValue(
     return inputs.recovery_boilers?.find((rb) => rb.id === rbId)?.reduction_eff_pct ?? 95.0;
   }
   if (param.key === "saltcake_flow_lb_hr") {
+    // Multi-RB: sum per-RB saltcake (Mansfield: 0+0=0)
+    if (inputs.recovery_boilers?.length) {
+      return inputs.recovery_boilers.reduce((sum, rb) => sum + (rb.saltcake_flow_lb_hr ?? 0), 0);
+    }
     return inputs.recovery_boiler?.saltcake_flow_lb_hr ?? 2227.0;
   }
   if (param.key === "nash_dry_override_lb_hr" && baseResults) {
