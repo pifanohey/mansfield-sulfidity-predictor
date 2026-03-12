@@ -93,6 +93,7 @@ class FiberlineInput(BaseModel):
     yield_pct: float
     ea_pct: float
     gl_ea_pct: Optional[float] = None
+    wash_water_gpm: Optional[float] = None
 
 
 class CalculationRequest(BaseModel):
@@ -159,6 +160,10 @@ class CalculationRequest(BaseModel):
     cto_tpd: float = 60.0
     cto_naoh_per_ton: float = 0.0  # lb NaOH/ton CTO (Na returns via brine)
 
+    # Wash water (paper machine white water returning to brownstock washers)
+    wash_water_na_pct: float = 0.0  # % by weight Na in wash water
+    wash_water_s_pct: float = 0.0   # % by weight S in wash water
+
     # Setpoints
     target_sulfidity_pct: float = 29.4
 
@@ -193,6 +198,8 @@ class CalculationRequest(BaseModel):
                 defaults["ea_pct"] = fl_input.ea_pct
                 if fl_input.gl_ea_pct is not None:
                     defaults["gl_ea_pct"] = fl_input.gl_ea_pct
+                if fl_input.wash_water_gpm is not None:
+                    defaults["wash_water_gpm"] = fl_input.wash_water_gpm
                 configs.append(FiberlineConfig(
                     id=mill_fl.id, name=mill_fl.name, type=mill_fl.type,
                     cooking_type=mill_fl.cooking_type,
@@ -272,9 +279,9 @@ class CalculationRequest(BaseModel):
         d['cto_tpd'] = self.cto_tpd
         d['cto_naoh_per_ton'] = self.cto_naoh_per_ton
 
-        # Wash water concentrations (mill config defaults, not user-editable)
-        d['wash_water_na_pct'] = mill.defaults.get('wash_water_na_pct', 0.0)
-        d['wash_water_s_pct'] = mill.defaults.get('wash_water_s_pct', 0.0)
+        # Wash water concentrations (user-editable, falls back to mill config)
+        d['wash_water_na_pct'] = self.wash_water_na_pct if self.wash_water_na_pct > 0 else mill.defaults.get('wash_water_na_pct', 0.0)
+        d['wash_water_s_pct'] = self.wash_water_s_pct if self.wash_water_s_pct > 0 else mill.defaults.get('wash_water_s_pct', 0.0)
 
         # Setpoints
         d['target_sulfidity_pct'] = self.target_sulfidity_pct

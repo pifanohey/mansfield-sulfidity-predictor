@@ -89,6 +89,7 @@ export interface CalculationRequest {
     yield_pct: number;
     ea_pct: number;
     gl_ea_pct?: number;
+    wash_water_gpm?: number;
   }>;
   // Dissolving tank (Excel 2_RB I43-I75)
   ww_flow_gpm: number;
@@ -121,6 +122,9 @@ export interface CalculationRequest {
   cto_h2so4_per_ton: number;
   cto_tpd: number;
   cto_naoh_per_ton?: number;
+  // Wash water (paper machine white water to brownstock washers)
+  wash_water_na_pct?: number;
+  wash_water_s_pct?: number;
   // Setpoints
   target_sulfidity_pct: number;
   // Makeup
@@ -367,6 +371,7 @@ export interface FiberlineInputState {
   yield_pct?: number;
   ea_pct?: number;
   gl_ea_pct?: number;
+  wash_water_gpm?: number;
 }
 
 export interface FiberlineConfig {
@@ -381,6 +386,7 @@ export interface FiberlineConfig {
     ea_pct: number;
     gl_ea_pct?: number;
     wood_moisture?: number;
+    wash_water_gpm?: number;
   };
 }
 

@@ -213,6 +213,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       if (d.cto_tpd != null) updates.cto_tpd = d.cto_tpd;
       if (d.cto_naoh_per_ton != null) updates.cto_naoh_per_ton = d.cto_naoh_per_ton;
 
+      // Wash water
+      if (d.wash_water_na_pct != null) updates.wash_water_na_pct = d.wash_water_na_pct;
+      if (d.wash_water_s_pct != null) updates.wash_water_s_pct = d.wash_water_s_pct;
+
       // Makeup
       if (d.nash_concentration != null) updates.nash_concentration = d.nash_concentration;
       if (d.naoh_concentration != null) updates.naoh_concentration = d.naoh_concentration;
@@ -313,6 +317,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         gl_ea_pct: fl.uses_gl_charge
           ? (fiberlineInputs[fl.id]?.gl_ea_pct ?? fl.defaults.gl_ea_pct)
           : undefined,
+        wash_water_gpm:
+          fiberlineInputs[fl.id]?.wash_water_gpm ?? fl.defaults.wash_water_gpm,
       }));
       inp = { ...inp, fiberlines };
 

@@ -20,6 +20,7 @@ import BLCompositionSection from "@/components/inputs/BLCompositionSection";
 import LossTableSection from "@/components/inputs/LossTableSection";
 import DissolvingTankSection from "@/components/inputs/DissolvingTankSection";
 import SlakerWLCSection from "@/components/inputs/SlakerWLCSection";
+import WhiteWaterSection from "@/components/inputs/WhiteWaterSection";
 import { useAppState } from "@/hooks/useAppState";
 import type { FiberlineConfig } from "@/lib/types";
 import {
@@ -161,7 +162,7 @@ export default function InputsPage() {
           </div>
         )}
 
-        <Accordion type="multiple" defaultValue={["tanks", "lab", "rb", "bl", "production", "setpoints", "dissolving", "recaust", "makeup", "losses"]}>
+        <Accordion type="multiple" defaultValue={[]}>
           <AccordionItem value="tanks">
             <AccordionTrigger>
               <div className="flex items-center gap-2">
@@ -243,6 +244,20 @@ export default function InputsPage() {
                 cookingSulfidity={inputs.cooking_wl_sulfidity}
                 onFiberlineChange={updateFiberlineField}
                 onGlobalChange={(k, v) => updateField(k as keyof typeof inputs, v as never)}
+              />
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="whitewater">
+            <AccordionTrigger>White Water (Paper Machine)</AccordionTrigger>
+            <AccordionContent>
+              <WhiteWaterSection
+                washWaterNaPct={inputs.wash_water_na_pct ?? 0}
+                washWaterSPct={inputs.wash_water_s_pct ?? 0}
+                fiberlines={fiberlines}
+                fiberlineInputs={fiberlineInputs}
+                onChange={(k, v) => updateField(k as keyof typeof inputs, v as never)}
+                onFiberlineChange={updateFiberlineField}
               />
             </AccordionContent>
           </AccordionItem>
