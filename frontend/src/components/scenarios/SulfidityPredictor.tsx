@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Zap, Save, TrendingUp, TrendingDown } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { fmtNum, fmtPct } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { CalculationRequest, CalculationResponse } from "@/lib/types";
+import type { CalculationRequest, CalculationResponse, MillConfig } from "@/lib/types";
 import { whatIf, saveTrend } from "@/lib/api";
 import SulfidityTrend from "@/components/results/SulfidityTrend";
 
@@ -20,16 +20,34 @@ interface PredictorParam {
   step: number;
 }
 
-const PREDICTOR_PARAMS: PredictorParam[] = [
-  { key: "reduction_eff_pct", label: "Reduction Efficiency", unit: "%", min: 85, max: 99, step: 0.5 },
-  { key: "causticity_pct", label: "Causticity", unit: "%", min: 70, max: 90, step: 0.5 },
-  { key: "fl_pine_production", label: "Pine Production", unit: "BDT/day", min: 800, max: 1600, step: 10 },
-  { key: "fl_semichem_production", label: "Semichem Production", unit: "BDT/day", min: 300, max: 900, step: 10 },
-  { key: "cto_tpd", label: "CTO Production", unit: "TPD", min: 0, max: 100, step: 1 },
-  { key: "saltcake_flow_lb_hr", label: "Saltcake Makeup", unit: "lb/hr", min: 0, max: 5000, step: 50 },
-  { key: "nash_dry_override_lb_hr", label: "NaSH (dry)", unit: "lb/hr", min: 0, max: 3000, step: 10 },
-  { key: "naoh_dry_override_lb_hr", label: "NaOH (dry)", unit: "lb/hr", min: 0, max: 5000, step: 10 },
-];
+/** Build predictor params dynamically from mill config fiberlines. */
+function buildParams(millConfig: MillConfig | null): PredictorParam[] {
+  const params: PredictorParam[] = [
+    { key: "reduction_eff_pct", label: "Reduction Efficiency", unit: "%", min: 75, max: 99, step: 0.5 },
+    { key: "causticity_pct", label: "Causticity", unit: "%", min: 70, max: 90, step: 0.5 },
+  ];
+
+  const fiberlines = millConfig?.fiberlines ?? [];
+  for (const fl of fiberlines) {
+    params.push({
+      key: `fl_${fl.id}_production`,
+      label: `${fl.name} Production`,
+      unit: "BDT/day",
+      min: Math.round((fl.defaults.production_bdt_day ?? 500) * 0.5),
+      max: Math.round((fl.defaults.production_bdt_day ?? 1500) * 1.3),
+      step: 10,
+    });
+  }
+
+  params.push(
+    { key: "cto_tpd", label: "CTO Production", unit: "TPD", min: 0, max: 150, step: 1 },
+    { key: "saltcake_flow_lb_hr", label: "Saltcake Makeup", unit: "lb/hr", min: 0, max: 5000, step: 50 },
+    { key: "nash_dry_override_lb_hr", label: "NaSH (dry)", unit: "lb/hr", min: 0, max: 3000, step: 10 },
+    { key: "naoh_dry_override_lb_hr", label: "NaOH (dry)", unit: "lb/hr", min: 0, max: 5000, step: 10 },
+  );
+
+  return params;
+}
 
 function getBaseValue(
   inputs: CalculationRequest,
@@ -48,28 +66,30 @@ function getBaseValue(
   if (param.key === "naoh_dry_override_lb_hr" && baseResults) {
     return baseResults.makeup.naoh_dry_lb_hr;
   }
-  // Fiberline production: extract from fiberlines array
-  if (param.key === "fl_pine_production") {
-    return inputs.fiberlines?.find((fl) => fl.id === "pine")?.production_bdt_day ?? 1250.69;
-  }
-  if (param.key === "fl_semichem_production") {
-    return inputs.fiberlines?.find((fl) => fl.id === "semichem")?.production_bdt_day ?? 636.854;
+  // Dynamic fiberline production: fl_<id>_production
+  const flMatch = param.key.match(/^fl_(.+)_production$/);
+  if (flMatch) {
+    const flId = flMatch[1];
+    return inputs.fiberlines?.find((fl) => fl.id === flId)?.production_bdt_day ?? 0;
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (inputs as any)[param.key] ?? 0;
 }
 
 /** Build what-if overrides, translating fiberline production keys to a fiberlines array. */
-function buildFiberlineOverrides(
+function buildOverrides(
   inputs: CalculationRequest,
   overrides: Record<string, number>,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   let needsFiberlineOverride = false;
+  const flProductionOverrides: Record<string, number> = {};
 
   for (const [key, value] of Object.entries(overrides)) {
-    if (key === "fl_pine_production" || key === "fl_semichem_production") {
+    const flMatch = key.match(/^fl_(.+)_production$/);
+    if (flMatch) {
       needsFiberlineOverride = true;
+      flProductionOverrides[flMatch[1]] = value;
     } else {
       result[key] = value;
     }
@@ -77,11 +97,8 @@ function buildFiberlineOverrides(
 
   if (needsFiberlineOverride && inputs.fiberlines) {
     const fiberlines = inputs.fiberlines.map((fl) => {
-      if (fl.id === "pine" && overrides["fl_pine_production"] !== undefined) {
-        return { ...fl, production_bdt_day: overrides["fl_pine_production"] };
-      }
-      if (fl.id === "semichem" && overrides["fl_semichem_production"] !== undefined) {
-        return { ...fl, production_bdt_day: overrides["fl_semichem_production"] };
+      if (flProductionOverrides[fl.id] !== undefined) {
+        return { ...fl, production_bdt_day: flProductionOverrides[fl.id] };
       }
       return fl;
     });
@@ -103,9 +120,10 @@ interface TornadoRow {
 interface Props {
   inputs: CalculationRequest;
   baseResults: CalculationResponse | null;
+  millConfig: MillConfig | null;
 }
 
-export default function SulfidityPredictor({ inputs, baseResults }: Props) {
+export default function SulfidityPredictor({ inputs, baseResults, millConfig }: Props) {
   const [overrides, setOverrides] = useState<Record<string, number>>({});
   const [result, setResult] = useState<CalculationResponse | null>(null);
   const [tornadoData, setTornadoData] = useState<TornadoRow[]>([]);
@@ -115,13 +133,15 @@ export default function SulfidityPredictor({ inputs, baseResults }: Props) {
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
 
+  const params = useMemo(() => buildParams(millConfig), [millConfig]);
+
   const handleSliderChange = (param: PredictorParam, value: number) => {
     setOverrides((prev) => ({ ...prev, [param.key]: value }));
   };
 
   const buildOverridesRaw = (): Record<string, number> => {
     const o: Record<string, number> = {};
-    for (const param of PREDICTOR_PARAMS) {
+    for (const param of params) {
       const base = getBaseValue(inputs, baseResults, param);
       o[param.key] = overrides[param.key] ?? base;
     }
@@ -133,14 +153,14 @@ export default function SulfidityPredictor({ inputs, baseResults }: Props) {
     setError(null);
     try {
       const currentOverrides = buildOverridesRaw();
-      const mainRes = await whatIf(inputs, buildFiberlineOverrides(inputs, currentOverrides));
+      const mainRes = await whatIf(inputs, buildOverrides(inputs, currentOverrides));
       setResult(mainRes.scenario_results);
       const mainSulf = mainRes.scenario_results.sulfidity.final_pct;
       setBaseSulfidity(mainSulf);
 
       const promises: Promise<{ param: PredictorParam; lowVal: number; highVal: number; lowSulf: number; highSulf: number }>[] = [];
 
-      for (const param of PREDICTOR_PARAMS) {
+      for (const param of params) {
         const val = currentOverrides[param.key];
         const delta = val > 0 ? val * 0.1 : param.max * 0.1;
         const lowVal = Math.max(param.min, val - delta);
@@ -154,9 +174,9 @@ export default function SulfidityPredictor({ inputs, baseResults }: Props) {
         }
 
         const lowOverrides = { ...currentOverrides, [param.key]: lowVal };
-        const lowP = whatIf(inputs, buildFiberlineOverrides(inputs, lowOverrides)).then((r) => r.scenario_results.sulfidity.final_pct);
+        const lowP = whatIf(inputs, buildOverrides(inputs, lowOverrides)).then((r) => r.scenario_results.sulfidity.final_pct);
         const highOverrides = { ...currentOverrides, [param.key]: highVal };
-        const highP = whatIf(inputs, buildFiberlineOverrides(inputs, highOverrides)).then((r) => r.scenario_results.sulfidity.final_pct);
+        const highP = whatIf(inputs, buildOverrides(inputs, highOverrides)).then((r) => r.scenario_results.sulfidity.final_pct);
 
         promises.push(
           Promise.all([lowP, highP]).then(([lowSulf, highSulf]) => ({
@@ -256,7 +276,7 @@ export default function SulfidityPredictor({ inputs, baseResults }: Props) {
           </div>
         </CardHeader>
         <CardContent className="space-y-5">
-          {PREDICTOR_PARAMS.map((param) => {
+          {params.map((param) => {
             const base = getBaseValue(inputs, baseResults, param);
             const current = overrides[param.key] ?? base;
             const changed = current !== base;

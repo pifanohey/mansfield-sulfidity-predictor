@@ -47,6 +47,7 @@ interface AppState {
   updateDTField: (dtId: string, key: string, value: number) => void;
   setMillConfig: (config: MillConfig) => void;
   resetToDefaults: () => void;
+  buildFullRequest: () => CalculationRequest;
   runCalculation: (inputs?: CalculationRequest) => Promise<CalculationResponse | null>;
 }
 
@@ -296,53 +297,57 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
   }, [millConfig, applyMillDefaults]);
 
+  /** Build a complete CalculationRequest with mill config fiberlines, multi-RB, and multi-DT. */
+  const buildFullRequest = useCallback((): CalculationRequest => {
+    let inp = { ...inputs };
+
+    if (millConfig) {
+      const fiberlines = millConfig.fiberlines.map((fl) => ({
+        id: fl.id,
+        production_bdt_day:
+          fiberlineInputs[fl.id]?.production_bdt_day ?? fl.defaults.production_bdt_day,
+        yield_pct:
+          fiberlineInputs[fl.id]?.yield_pct ?? fl.defaults.yield_pct,
+        ea_pct:
+          fiberlineInputs[fl.id]?.ea_pct ?? fl.defaults.ea_pct,
+        gl_ea_pct: fl.uses_gl_charge
+          ? (fiberlineInputs[fl.id]?.gl_ea_pct ?? fl.defaults.gl_ea_pct)
+          : undefined,
+      }));
+      inp = { ...inp, fiberlines };
+
+      if (millConfig.recovery_boilers?.length > 1) {
+        const recovery_boilers = millConfig.recovery_boilers.map((rb) => ({
+          id: rb.id,
+          bl_flow_gpm: rbInputs[rb.id]?.bl_flow_gpm,
+          bl_tds_pct: rbInputs[rb.id]?.bl_tds_pct,
+          bl_temp_f: rbInputs[rb.id]?.bl_temp_f,
+          reduction_eff_pct: rbInputs[rb.id]?.reduction_eff_pct,
+          ash_recycled_pct: rbInputs[rb.id]?.ash_recycled_pct,
+          saltcake_flow_lb_hr: rbInputs[rb.id]?.saltcake_flow_lb_hr,
+        }));
+        inp = { ...inp, recovery_boilers };
+      }
+
+      if (millConfig.dissolving_tanks?.length > 1) {
+        const dissolving_tanks = millConfig.dissolving_tanks.map((dt) => ({
+          id: dt.id,
+          ww_flow_gpm: dtInputs[dt.id]?.ww_flow_gpm,
+          ww_tta_lb_ft3: dtInputs[dt.id]?.ww_tta_lb_ft3,
+          ww_sulfidity: dtInputs[dt.id]?.ww_sulfidity,
+          shower_flow_gpm: dtInputs[dt.id]?.shower_flow_gpm,
+          smelt_density_lb_ft3: dtInputs[dt.id]?.smelt_density_lb_ft3,
+        }));
+        inp = { ...inp, dissolving_tanks };
+      }
+    }
+
+    return inp;
+  }, [inputs, millConfig, fiberlineInputs, rbInputs, dtInputs]);
+
   const runCalculation = useCallback(
     async (overrideInputs?: CalculationRequest) => {
-      let inp = overrideInputs ?? inputs;
-
-      // If mill config is available, build the V2 arrays
-      if (millConfig && !overrideInputs) {
-        const fiberlines = millConfig.fiberlines.map((fl) => ({
-          id: fl.id,
-          production_bdt_day:
-            fiberlineInputs[fl.id]?.production_bdt_day ?? fl.defaults.production_bdt_day,
-          yield_pct:
-            fiberlineInputs[fl.id]?.yield_pct ?? fl.defaults.yield_pct,
-          ea_pct:
-            fiberlineInputs[fl.id]?.ea_pct ?? fl.defaults.ea_pct,
-          gl_ea_pct: fl.uses_gl_charge
-            ? (fiberlineInputs[fl.id]?.gl_ea_pct ?? fl.defaults.gl_ea_pct)
-            : undefined,
-        }));
-        inp = { ...inp, fiberlines };
-
-        // Multi-RB: send per-RB overrides from editable state
-        if (millConfig.recovery_boilers?.length > 1) {
-          const recovery_boilers = millConfig.recovery_boilers.map((rb) => ({
-            id: rb.id,
-            bl_flow_gpm: rbInputs[rb.id]?.bl_flow_gpm,
-            bl_tds_pct: rbInputs[rb.id]?.bl_tds_pct,
-            bl_temp_f: rbInputs[rb.id]?.bl_temp_f,
-            reduction_eff_pct: rbInputs[rb.id]?.reduction_eff_pct,
-            ash_recycled_pct: rbInputs[rb.id]?.ash_recycled_pct,
-            saltcake_flow_lb_hr: rbInputs[rb.id]?.saltcake_flow_lb_hr,
-          }));
-          inp = { ...inp, recovery_boilers };
-        }
-
-        // Multi-DT: send per-DT overrides from editable state
-        if (millConfig.dissolving_tanks?.length > 1) {
-          const dissolving_tanks = millConfig.dissolving_tanks.map((dt) => ({
-            id: dt.id,
-            ww_flow_gpm: dtInputs[dt.id]?.ww_flow_gpm,
-            ww_tta_lb_ft3: dtInputs[dt.id]?.ww_tta_lb_ft3,
-            ww_sulfidity: dtInputs[dt.id]?.ww_sulfidity,
-            shower_flow_gpm: dtInputs[dt.id]?.shower_flow_gpm,
-            smelt_density_lb_ft3: dtInputs[dt.id]?.smelt_density_lb_ft3,
-          }));
-          inp = { ...inp, dissolving_tanks };
-        }
-      }
+      const inp = overrideInputs ?? buildFullRequest();
 
       setLoading(true);
       setError(null);
@@ -358,7 +363,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         setLoading(false);
       }
     },
-    [inputs, millConfig, fiberlineInputs, rbInputs, dtInputs]
+    [buildFullRequest]
   );
 
   return (
@@ -380,6 +385,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         updateDTField,
         setMillConfig,
         resetToDefaults,
+        buildFullRequest,
         runCalculation,
       }}
     >

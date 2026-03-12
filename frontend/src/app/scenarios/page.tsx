@@ -10,7 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAppState } from "@/hooks/useAppState";
 
 export default function ScenariosPage() {
-  const { inputs, results, loading, configReady, runCalculation } = useAppState();
+  const { results, loading, configReady, millConfig, buildFullRequest, runCalculation } = useAppState();
 
   useEffect(() => {
     if (configReady && !results) runCalculation();
@@ -34,10 +34,10 @@ export default function ScenariosPage() {
               <TabsTrigger value="predictor">Sulfidity Predictor</TabsTrigger>
             </TabsList>
             <TabsContent value="whatif">
-              <ScenarioBuilder inputs={inputs} baseResults={results} />
+              <ScenarioBuilder inputs={buildFullRequest()} baseResults={results} millConfig={millConfig} />
             </TabsContent>
             <TabsContent value="predictor">
-              <SulfidityPredictor inputs={inputs} baseResults={results} />
+              <SulfidityPredictor inputs={buildFullRequest()} baseResults={results} millConfig={millConfig} />
             </TabsContent>
           </Tabs>
         ) : loading ? (
