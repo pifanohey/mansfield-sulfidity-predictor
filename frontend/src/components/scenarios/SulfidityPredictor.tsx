@@ -205,7 +205,7 @@ export default function SulfidityPredictor({ inputs, baseResults, millConfig }: 
       const promises: Promise<{ param: PredictorParam; lowVal: number; highVal: number; lowSulf: number; highSulf: number }>[] = [];
 
       for (const param of params) {
-        const val = currentOverrides[param.key];
+        const val = currentOverrides[param.key] ?? getBaseValue(inputs, baseResults, param);
         const delta = val > 0 ? val * 0.1 : param.max * 0.1;
         const lowVal = Math.max(param.min, val - delta);
         const highVal = Math.min(param.max, val + delta);
