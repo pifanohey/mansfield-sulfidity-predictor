@@ -1209,9 +1209,7 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
             break
 
         # Skip outer loop iteration when override is set or outer loop is disabled
-        # NaSH override: outer loop feedback is uncompensated (Secant bypassed),
-        # causing runaway BL S% drift. Use fixed BL composition for short-term what-if.
-        if s_deficit_override is not None or not enable_outer_loop or nash_dry_override is not None:
+        if s_deficit_override is not None or not enable_outer_loop:
             outer_converged = True
             break
 

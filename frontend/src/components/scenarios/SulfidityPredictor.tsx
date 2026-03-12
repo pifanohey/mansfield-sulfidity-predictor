@@ -143,7 +143,13 @@ export default function SulfidityPredictor({ inputs, baseResults, millConfig }: 
     const o: Record<string, number> = {};
     for (const param of params) {
       const base = getBaseValue(inputs, baseResults, param);
-      o[param.key] = overrides[param.key] ?? base;
+      if (param.key === "nash_dry_override_lb_hr" || param.key === "naoh_dry_override_lb_hr") {
+        // Always send NaSH/NaOH — the predictor's core purpose
+        o[param.key] = overrides[param.key] ?? base;
+      } else if (overrides[param.key] !== undefined) {
+        // Only send params the user explicitly changed
+        o[param.key] = overrides[param.key];
+      }
     }
     return o;
   };
