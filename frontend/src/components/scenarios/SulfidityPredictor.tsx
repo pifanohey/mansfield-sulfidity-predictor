@@ -57,7 +57,17 @@ function buildParams(millConfig: MillConfig | null): PredictorParam[] {
 
   params.push(
     { key: "cto_tpd", label: "CTO Production", unit: "TPD", min: 0, max: 150, step: 1 },
-    { key: "saltcake_flow_lb_hr", label: "Saltcake Makeup", unit: "lb/hr", min: 0, max: 5000, step: 50 },
+  );
+
+  // Only include saltcake if the mill actually has non-zero saltcake flow
+  const hasSaltcake = rbs.length > 0
+    ? rbs.some((rb) => (rb.defaults.saltcake_flow_lb_hr ?? 0) > 0)
+    : true; // single-RB fallback: show it (Pine Hill has 2227 lb/hr)
+  if (hasSaltcake) {
+    params.push({ key: "saltcake_flow_lb_hr", label: "Saltcake Makeup", unit: "lb/hr", min: 0, max: 5000, step: 50 });
+  }
+
+  params.push(
     { key: "nash_dry_override_lb_hr", label: "NaSH (dry)", unit: "lb/hr", min: 0, max: 3000, step: 10 },
     { key: "naoh_dry_override_lb_hr", label: "NaOH (dry)", unit: "lb/hr", min: 0, max: 5000, step: 10 },
   );
