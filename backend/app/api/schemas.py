@@ -181,6 +181,105 @@ class CalculationRequest(BaseModel):
     nash_dry_override_lb_hr: Optional[float] = None
     naoh_dry_override_lb_hr: Optional[float] = None
 
+    @classmethod
+    def from_mill_config(cls, mill) -> "CalculationRequest":
+        """Build a full CalculationRequest from a MillConfig with ALL mill defaults.
+
+        Use this instead of manually constructing CalculationRequest to avoid
+        accidentally using Pine Hill defaults for another mill's parameters.
+        """
+        md = mill.defaults
+
+        # Fiberlines
+        fiberlines = []
+        for fl in mill.fiberlines:
+            fl_inp: Dict[str, Any] = {
+                'id': fl.id,
+                'production_bdt_day': fl.defaults['production_bdt_day'],
+                'yield_pct': fl.defaults['yield_pct'],
+                'ea_pct': fl.defaults['ea_pct'],
+            }
+            if fl.uses_gl_charge and 'gl_ea_pct' in fl.defaults:
+                fl_inp['gl_ea_pct'] = fl.defaults['gl_ea_pct']
+            if 'wash_water_gpm' in fl.defaults:
+                fl_inp['wash_water_gpm'] = fl.defaults['wash_water_gpm']
+            fiberlines.append(fl_inp)
+
+        # Multi-RB / Multi-DT (only when >1)
+        rbs = [{'id': rb.id} for rb in mill.recovery_boilers] if len(mill.recovery_boilers) > 1 else None
+        dts = [{'id': dt.id} for dt in mill.dissolving_tanks] if len(mill.dissolving_tanks) > 1 else None
+
+        # Loss table from config flat keys
+        _LOSS_SOURCES = [
+            'pulp_washable_soda', 'pulp_bound_soda', 'pulp_mill_spills',
+            'evap_spill', 'rb_ash', 'rb_stack', 'dregs_filter', 'grits',
+            'weak_wash_overflow', 'ncg', 'recaust_spill', 'rb_dump_tank',
+            'kiln_scrubber', 'truck_out_gl', 'unaccounted',
+        ]
+        loss_sources = {}
+        has_loss_data = any(f'loss_{src}_s' in md or f'loss_{src}_na' in md for src in _LOSS_SOURCES)
+        if has_loss_data:
+            for src in _LOSS_SOURCES:
+                loss_sources[src] = LossTableSource(
+                    s_lb_bdt=md.get(f'loss_{src}_s', 0.0),
+                    na_lb_bdt=md.get(f'loss_{src}_na', 0.0),
+                )
+        loss_table = LossTable(**loss_sources) if has_loss_data else None
+
+        return cls(
+            fiberlines=fiberlines,
+            recovery_boilers=rbs,
+            dissolving_tanks=dts,
+            loss_table=loss_table,
+            # BL
+            bl_na_pct=md.get('bl_na_pct', 19.50),
+            bl_s_pct=md.get('bl_s_pct', 3.93),
+            bl_k_pct=md.get('bl_k_pct', 1.58),
+            # Cooking
+            cooking_wl_sulfidity=md.get('cooking_wl_sulfidity', 0.258),
+            # DT
+            ww_flow_gpm=md.get('ww_flow_gpm', 625.0),
+            ww_tta_lb_ft3=md.get('ww_tta_lb_ft3', 1.07978),
+            ww_sulfidity=md.get('ww_sulfidity', 0.2550),
+            shower_flow_gpm=md.get('shower_flow_gpm', 60.0),
+            smelt_density_lb_ft3=md.get('smelt_density_lb_ft3', 110.0),
+            gl_target_tta_lb_ft3=md.get('gl_target_tta_lb_ft3', 7.4),
+            gl_causticity=md.get('gl_causticity', 0.1016),
+            # Slaker
+            causticity_pct=md.get('causticity_pct', 81.0),
+            lime_charge_ratio=md.get('lime_charge_ratio', 0.85),
+            cao_in_lime_pct=md.get('cao_in_lime_pct', 87.53),
+            caco3_in_lime_pct=md.get('caco3_in_lime_pct', 1.96),
+            inerts_in_lime_pct=md.get('inerts_in_lime_pct', 9.46),
+            grits_loss_pct=md.get('grits_loss_pct', 1.0),
+            lime_temp_f=md.get('lime_temp_f', 1100.0),
+            slaker_temp_f=md.get('slaker_temp_f', 210.5),
+            # WLC
+            intrusion_water_gpm=md.get('intrusion_water_gpm', 28.0),
+            dilution_water_gpm=md.get('dilution_water_gpm', 23.856),
+            wlc_underflow_solids_pct=md.get('wlc_underflow_solids_pct', 0.4097),
+            wlc_mud_density=md.get('wlc_mud_density', 1.33),
+            # GL clarifier
+            dregs_lb_bdt=md.get('dregs_lb_bdt', 8.158),
+            glc_underflow_solids_pct=md.get('glc_underflow_solids_pct', 0.077),
+            grits_lb_bdt=md.get('grits_lb_bdt', 8.53),
+            grits_solids_pct=md.get('grits_solids_pct', 0.40),
+            # CTO
+            cto_h2so4_per_ton=md.get('cto_h2so4_per_ton', 398.0),
+            cto_tpd=md.get('cto_tpd', 60.0),
+            cto_naoh_per_ton=md.get('cto_naoh_per_ton', 0.0),
+            # Wash water
+            wash_water_na_pct=md.get('wash_water_na_pct', 0.0),
+            wash_water_s_pct=md.get('wash_water_s_pct', 0.0),
+            # Setpoints
+            target_sulfidity_pct=md.get('target_sulfidity_pct', 29.4),
+            # Makeup chemical properties
+            nash_concentration=md.get('nash_concentration', 0.40),
+            naoh_concentration=md.get('naoh_concentration', 0.50),
+            nash_density=md.get('nash_density', 1.29),
+            naoh_density=md.get('naoh_density', 1.52),
+        )
+
     def to_engine_inputs(self) -> Dict[str, Any]:
         """Convert API request to engine input dict."""
         d: Dict[str, Any] = {}
@@ -273,6 +372,25 @@ class CalculationRequest(BaseModel):
         d['glc_underflow_solids_pct'] = self.glc_underflow_solids_pct
         d['grits_lb_bdt'] = self.grits_lb_bdt
         d['grits_solids_pct'] = self.grits_solids_pct
+        # Dregs filter params (mill-specific, not user-editable)
+        if 'dregs_cake_solids_pct' in mill.defaults:
+            d['dregs_cake_solids_pct'] = mill.defaults['dregs_cake_solids_pct']
+        if 'dregs_shower_ratio' in mill.defaults:
+            d['dregs_shower_ratio'] = mill.defaults['dregs_shower_ratio']
+        # GL steam heater (mill-specific, not user-editable)
+        if 'gl_heater_target_temp_f' in mill.defaults:
+            d['gl_heater_target_temp_f'] = mill.defaults['gl_heater_target_temp_f']
+        if 'gl_temp_before_heater_f' in mill.defaults:
+            d['gl_temp_before_heater_f'] = mill.defaults['gl_temp_before_heater_f']
+
+        # DT energy balance (mill-specific, not user-editable)
+        for key in ['smelt_temp_f', 'ww_temp_f', 'shower_temp_f', 'dt_operating_temp_f']:
+            if key in mill.defaults:
+                d[key] = mill.defaults[key]
+        if 'smelt_cp_btu_lb_f' in mill.defaults:
+            d['smelt_cp_btu_lb_f'] = mill.defaults['smelt_cp_btu_lb_f']
+        if 'latent_heat_212_btu_lb' in mill.defaults:
+            d['latent_heat_212_btu_lb'] = mill.defaults['latent_heat_212_btu_lb']
 
         # CTO
         d['cto_h2so4_per_ton'] = self.cto_h2so4_per_ton

@@ -137,15 +137,19 @@
     "ww_sulfidity": 0.2953,
     "shower_flow_gpm": 158.0,
     "smelt_density_lb_ft3": 102.77,
-    "gl_target_tta_lb_ft3": 8.3,
+    "gl_target_tta_lb_ft3": 8.46,
     "gl_causticity": 0.10,
 
-    "smelt_temp_f": 1338.0,
+    "smelt_temp_f": 1382.0,
     "ww_temp_f": 180.0,
     "shower_temp_f": 140.0,
     "dt_operating_temp_f": 212.0,
     "smelt_cp_btu_lb_f": 0.223,
     "latent_heat_212_btu_lb": 970.0,
+
+    "gl_heater_target_temp_f": 185.6,
+    "gl_temp_before_heater_f": 177.4,
+    "gl_heater_steam_psig": 60.0,
 
     "cto_h2so4_per_ton": 391.0,
     "cto_tpd": 117.5,
@@ -172,8 +176,10 @@
     "intrusion_water_gpm": 35.0,
     "dilution_water_gpm": 64.2,
 
-    "dregs_lb_bdt": 18.89,
+    "dregs_lb_bdt": 9.9246,
     "glc_underflow_solids_pct": 0.0768,
+    "dregs_cake_solids_pct": 0.4899,
+    "dregs_shower_ratio": 3.33,
     "grits_lb_bdt": 14.13,
     "grits_solids_pct": 0.37,
 

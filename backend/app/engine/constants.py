@@ -274,8 +274,15 @@ DEFAULTS = {
     # ── GL Clarifier (3_Chem B62-B80) — CALCULATED underflows ──
     'dregs_lb_bdt': 8.158,              # B63 — GL dregs lb/BDT pulp (input)
     'glc_underflow_solids_pct': 0.077,  # B65 — GLC underflow solids fraction (7.70%)
+    'dregs_cake_solids_pct': 0.365,     # Dregs filter cake solids fraction (36.5%)
+    'dregs_shower_ratio': 6.0,          # Dregs filter shower water lb/lb solids
     'grits_lb_bdt': 8.53,              # B73 — Grits losses lb/BDT (input)
     'grits_solids_pct': 0.40,          # B75 — Grits solids fraction (40%)
+
+    # GL steam heater (direct contact, between GLC and slaker)
+    'gl_heater_target_temp_f': 0.0,    # 0 = no GL heater (Pine Hill)
+    'gl_temp_before_heater_f': 0.0,    # GL temp entering heater (°F)
+    'gl_heater_steam_psig': 60.0,      # Steam supply pressure (psig)
 
     # Forward leg: fiberline BL generation
     # DEPRECATED: s_loss_digester_pct is superseded by loss_ncg_s in the unified loss table.

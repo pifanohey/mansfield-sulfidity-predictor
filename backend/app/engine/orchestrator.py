@@ -236,6 +236,8 @@ def _run_inner_loop(
     dregs_solids_lb_hr=0.0,
     glc_underflow_solids_pct=0.077,
     gl_density_lb_gal=8.6,
+    dregs_cake_solids_pct=0.365,
+    dregs_shower_ratio=6.0,
     # DT energy balance
     smelt_temp_f=1338.0,
     ww_temp_f=180.0,
@@ -243,6 +245,9 @@ def _run_inner_loop(
     dt_operating_temp_f=212.0,
     smelt_cp=0.29,
     latent_heat=970.0,
+    # GL steam heater (direct contact, between GLC and slaker)
+    gl_heater_target_temp_f=0.0,
+    gl_temp_before_heater_f=0.0,
 ):
     """Run the existing inner convergence loop (GL flow to slaker).
 
@@ -298,6 +303,8 @@ def _run_inner_loop(
                 glc_underflow_solids_pct=glc_underflow_solids_pct,
                 gl_tta_g_L=dt_result.gl_tta_g_L,
                 gl_density_lb_gal=gl_density_lb_gal,
+                shower_ratio=dregs_shower_ratio,
+                cake_solids_pct=dregs_cake_solids_pct,
             )
             dregs_filtrate_gpm = df_result.filtrate_gpm
             filtrate_tta_g_L = df_result.filtrate_tta_g_L
@@ -326,13 +333,41 @@ def _run_inner_loop(
             latent_heat=latent_heat,
         )
         gl_flow = dt_result.gl_flow_to_slaker_gpm
+        gl_tta_to_slaker = dt_result.gl_tta_g_L
+        gl_na2s_to_slaker = dt_result.gl_na2s_g_L
+        gl_aa_to_slaker = dt_result.gl_aa_g_L
+        gl_heater_steam_lb_hr = 0.0
+        gl_heater_condensate_gpm = 0.0
+
+        # GL steam heater (direct contact, between GLC and slaker)
+        # Steam condenses into GL, adding volume and diluting concentration.
+        if gl_heater_target_temp_f > 0 and gl_temp_before_heater_f > 0:
+            t_in = gl_temp_before_heater_f
+            t_out = gl_heater_target_temp_f
+            if t_out > t_in:
+                cp_gl = 0.85  # BTU/lb·°F for green liquor
+                # Saturated steam at 60 psig: h_g ≈ 1181 BTU/lb
+                h_steam = 1181.0
+                # Condensate enthalpy at outlet temp (liquid)
+                h_cond = (t_out - 32.0) * 1.0  # approximate
+                gl_mass_lb_hr = gl_flow * gl_density_lb_gal * 60.0
+                q_needed = gl_mass_lb_hr * cp_gl * (t_out - t_in)
+                gl_heater_steam_lb_hr = q_needed / (h_steam - h_cond)
+                gl_heater_condensate_gpm = gl_heater_steam_lb_hr / (8.34 * 60.0)
+                # Dilute GL concentrations (condensate is pure water)
+                gl_mass_after = gl_mass_lb_hr + gl_heater_steam_lb_hr
+                dilution = gl_mass_lb_hr / gl_mass_after
+                gl_tta_to_slaker = dt_result.gl_tta_g_L * dilution
+                gl_na2s_to_slaker = dt_result.gl_na2s_g_L * dilution
+                gl_aa_to_slaker = dt_result.gl_aa_g_L * dilution
+                gl_flow = gl_flow + gl_heater_condensate_gpm
 
         # Step 2: Slaker → WL from slaker
         slaker_result = calculate_slaker_model(
             gl_flow_gpm=gl_flow,
-            gl_tta_g_L=dt_result.gl_tta_g_L,
-            gl_na2s_g_L=dt_result.gl_na2s_g_L,
-            gl_aa_g_L=dt_result.gl_aa_g_L,
+            gl_tta_g_L=gl_tta_to_slaker,
+            gl_na2s_g_L=gl_na2s_to_slaker,
+            gl_aa_g_L=gl_aa_to_slaker,
             gl_temp_f=gl_temp,
             causticity=causticity,
             lime_charge_ratio=lime_charge_ratio,
@@ -759,6 +794,9 @@ def _run_inner_loop(
         # WW flow solve & dregs filter
         'ww_flow_solved_gpm': ww_flow_solved,
         'dregs_filtrate_gpm': dregs_filtrate_gpm,
+        # GL steam heater
+        'gl_heater_steam_lb_hr': gl_heater_steam_lb_hr,
+        'gl_heater_condensate_gpm': gl_heater_condensate_gpm,
         # WLC clean result (before makeup) for makeup_after_wlc mode
         'wlc_clean': wlc_clean,
     }
@@ -846,8 +884,14 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
 
     dregs_lb_bdt = inputs.get('dregs_lb_bdt', DEFAULTS['dregs_lb_bdt'])
     glc_solids_pct = inputs.get('glc_underflow_solids_pct', DEFAULTS['glc_underflow_solids_pct'])
+    dregs_cake_solids_pct = inputs.get('dregs_cake_solids_pct', DEFAULTS['dregs_cake_solids_pct'])
+    dregs_shower_ratio = inputs.get('dregs_shower_ratio', DEFAULTS['dregs_shower_ratio'])
     grits_lb_bdt = inputs.get('grits_lb_bdt', DEFAULTS['grits_lb_bdt'])
     grits_solids_pct = inputs.get('grits_solids_pct', DEFAULTS['grits_solids_pct'])
+
+    # GL steam heater (direct contact, between GLC and slaker)
+    gl_heater_target_temp_f = inputs.get('gl_heater_target_temp_f', DEFAULTS['gl_heater_target_temp_f'])
+    gl_temp_before_heater_f = inputs.get('gl_temp_before_heater_f', DEFAULTS['gl_temp_before_heater_f'])
 
     # CTO chemistry — computed from H2SO4/ton and TPD inputs
     cto_h2so4_per_ton = inputs.get('cto_h2so4_per_ton', DEFAULTS['cto_h2so4_per_ton'])
@@ -1186,6 +1230,8 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
             dregs_solids_lb_hr=dregs_solids_lb_hr,
             glc_underflow_solids_pct=glc_solids_pct,
             gl_density_lb_gal=gl_density_lb_gal,
+            dregs_cake_solids_pct=dregs_cake_solids_pct,
+            dregs_shower_ratio=dregs_shower_ratio,
             # DT energy balance
             smelt_temp_f=smelt_temp_f,
             ww_temp_f=ww_temp_f,
@@ -1193,6 +1239,9 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
             dt_operating_temp_f=dt_operating_temp_f,
             smelt_cp=smelt_cp,
             latent_heat=latent_heat,
+            # GL steam heater
+            gl_heater_target_temp_f=gl_heater_target_temp_f,
+            gl_temp_before_heater_f=gl_temp_before_heater_f,
         )
 
         if nash_dry_override is not None:
@@ -1421,7 +1470,7 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
     # Dissolving tank
     if dt_result:
         results['smelt_flow_gpm'] = dt_result.smelt_flow_gpm
-        results['gl_flow_to_slaker_gpm'] = dt_result.gl_flow_to_slaker_gpm
+        results['gl_flow_to_slaker_gpm'] = dt_result.gl_flow_to_slaker_gpm + inner['gl_heater_condensate_gpm']
         results['dissolving_tank_flow'] = dt_result.total_dissolving_flow_gpm
         results['gl_tta_g_L'] = dt_result.gl_tta_g_L
         results['gl_na2s_g_L'] = dt_result.gl_na2s_g_L
@@ -1442,6 +1491,10 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
     results['ww_flow_solved_gpm'] = inner['ww_flow_solved_gpm']
     results['ww_flow_input_gpm'] = ww_flow  # Original fixed input for reference
     results['dregs_filtrate_gpm'] = inner['dregs_filtrate_gpm']
+
+    # GL steam heater
+    results['gl_heater_steam_lb_hr'] = inner['gl_heater_steam_lb_hr']
+    results['gl_heater_condensate_gpm'] = inner['gl_heater_condensate_gpm']
 
     # GL Clarifier
     results['dregs_underflow_gpm'] = dregs_gpm
