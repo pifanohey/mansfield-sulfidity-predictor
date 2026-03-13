@@ -759,6 +759,8 @@ def _run_inner_loop(
         # WW flow solve & dregs filter
         'ww_flow_solved_gpm': ww_flow_solved,
         'dregs_filtrate_gpm': dregs_filtrate_gpm,
+        # WLC clean result (before makeup) for makeup_after_wlc mode
+        'wlc_clean': wlc_clean,
     }
 
 
@@ -1350,6 +1352,7 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
     slaker_result = inner['slaker_result']
     chem_result = inner['chem_result']
     wlc_result = inner['wlc_result']
+    wlc_clean = inner['wlc_clean']
     makeup = inner['makeup']
     nash_dry = inner['nash_dry']
     naoh_dry = inner['naoh_dry']
@@ -1499,6 +1502,16 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
         # NaOH = AA - Na2S, Na2CO3 = TTA - AA
         results['final_wl_naoh_g_L'] = wlc_result.final_aa_g_L - wlc_result.final_na2s_g_L
         results['final_wl_na2co3_g_L'] = wlc_result.final_tta_g_L - wlc_result.final_aa_g_L
+
+    # Process flow flag for frontend diagrams
+    results['makeup_after_wlc'] = makeup_after_wlc
+    if makeup_after_wlc and wlc_clean is not None:
+        # WLC overflow before makeup addition (for frontend diagram split)
+        results['wlc_clean_overflow_gpm'] = wlc_clean.wl_overflow_gpm
+        results['wlc_clean_tta_g_L'] = wlc_clean.final_tta_g_L
+        results['wlc_clean_na2s_g_L'] = wlc_clean.final_na2s_g_L
+        results['wlc_clean_ea_g_L'] = wlc_clean.final_ea_g_L
+        results['wlc_clean_sulfidity_pct'] = wlc_clean.final_sulfidity_pct
 
     # Makeup
     results['nash_dry_lbs_hr'] = nash_dry

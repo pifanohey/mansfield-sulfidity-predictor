@@ -204,6 +204,14 @@ def _build_response(results: Dict[str, Any], inputs: Dict[str, Any]) -> Calculat
             'final_wl_naoh_g_L': results.get('final_wl_naoh_g_L', 0),
             'final_wl_na2co3_g_L': results.get('final_wl_na2co3_g_L', 0),
             'dissolving_tank_flow': results.get('dissolving_tank_flow', 0),
+            # Process flow flag
+            'makeup_after_wlc': results.get('makeup_after_wlc', False),
+            # WLC clean overflow (before makeup) — only present when makeup_after_wlc=True
+            'wlc_clean_overflow_gpm': results.get('wlc_clean_overflow_gpm', 0),
+            'wlc_clean_tta_g_L': results.get('wlc_clean_tta_g_L', 0),
+            'wlc_clean_na2s_g_L': results.get('wlc_clean_na2s_g_L', 0),
+            'wlc_clean_ea_g_L': results.get('wlc_clean_ea_g_L', 0),
+            'wlc_clean_sulfidity_pct': results.get('wlc_clean_sulfidity_pct', 0),
             **per_fl_intermediates,
         },
         unit_operations=[
