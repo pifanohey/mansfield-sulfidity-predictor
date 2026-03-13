@@ -377,6 +377,8 @@ class CalculationRequest(BaseModel):
             d['dregs_cake_solids_pct'] = mill.defaults['dregs_cake_solids_pct']
         if 'dregs_shower_ratio' in mill.defaults:
             d['dregs_shower_ratio'] = mill.defaults['dregs_shower_ratio']
+        if 'dregs_filtrate_sewer_pct' in mill.defaults:
+            d['dregs_filtrate_sewer_pct'] = mill.defaults['dregs_filtrate_sewer_pct']
         # GL steam heater (mill-specific, not user-editable)
         if 'gl_heater_target_temp_f' in mill.defaults:
             d['gl_heater_target_temp_f'] = mill.defaults['gl_heater_target_temp_f']

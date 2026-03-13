@@ -181,6 +181,7 @@
     "glc_underflow_solids_pct": 0.0768,
     "dregs_cake_solids_pct": 0.4899,
     "dregs_shower_ratio": 3.33,
+    "dregs_filtrate_sewer_pct": 0.363,
     "grits_lb_bdt": 14.13,
     "grits_solids_pct": 0.37,
 

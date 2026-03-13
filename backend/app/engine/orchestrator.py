@@ -238,6 +238,7 @@ def _run_inner_loop(
     gl_density_lb_gal=8.6,
     dregs_cake_solids_pct=0.365,
     dregs_shower_ratio=6.0,
+    dregs_filtrate_sewer_pct=0.0,
     # DT energy balance
     smelt_temp_f=1338.0,
     ww_temp_f=180.0,
@@ -280,6 +281,7 @@ def _run_inner_loop(
     makeup = None
     ww_flow_solved = ww_flow  # Will be overwritten by analytical solve
     dregs_filtrate_gpm = 0.0
+    filtrate_return_gpm = 0.0
 
     converged = False
     iterations = 0
@@ -294,9 +296,11 @@ def _run_inner_loop(
         # ══════════════════════════════════════════════════════════════════════
 
         # Step 1: Dregs filter → WW flow solve → Dissolving Tank → GL composition
-        # Dregs filter filtrate returns to WW tank, raising WW TTA.
-        # Use previous iteration's GL TTA for dregs filter (bootstrap: 0 for first iter).
+        # Physical flow: DT produces GL → filtrate return mixes with GL before GLC → GLC removes dregs.
+        # Filtrate does NOT enter DT (no effect on DT energy balance / steam).
+        # A fraction of filtrate goes to sewer; the rest returns to GL before GLC.
         filtrate_tta_g_L = 0.0
+        filtrate_return_gpm = 0.0
         if dt_result is not None and dregs_solids_lb_hr > 0:
             df_result = calculate_dregs_filter(
                 dregs_solids_lb_hr=dregs_solids_lb_hr,
@@ -307,6 +311,7 @@ def _run_inner_loop(
                 cake_solids_pct=dregs_cake_solids_pct,
             )
             dregs_filtrate_gpm = df_result.filtrate_gpm
+            filtrate_return_gpm = dregs_filtrate_gpm * (1 - dregs_filtrate_sewer_pct)
             filtrate_tta_g_L = df_result.filtrate_tta_g_L
 
         # Solve WW flow analytically to hit GL TTA setpoint (mass balance closure)
@@ -323,7 +328,7 @@ def _run_inner_loop(
             gl_causticity=gl_causticity,
             underflow_dregs_gpm=dregs_gpm,
             semichem_gl_gpm=total_gl_to_digesters,
-            dregs_filtrate_gpm=dregs_filtrate_gpm,
+            dregs_filtrate_gpm=filtrate_return_gpm,
             filtrate_tta_g_L=filtrate_tta_g_L,
             smelt_temp_f=smelt_temp_f,
             ww_temp_f=ww_temp_f,
@@ -794,6 +799,7 @@ def _run_inner_loop(
         # WW flow solve & dregs filter
         'ww_flow_solved_gpm': ww_flow_solved,
         'dregs_filtrate_gpm': dregs_filtrate_gpm,
+        'dregs_filtrate_return_gpm': filtrate_return_gpm,
         # GL steam heater
         'gl_heater_steam_lb_hr': gl_heater_steam_lb_hr,
         'gl_heater_condensate_gpm': gl_heater_condensate_gpm,
@@ -889,6 +895,7 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
     glc_solids_pct = inputs.get('glc_underflow_solids_pct', DEFAULTS['glc_underflow_solids_pct'])
     dregs_cake_solids_pct = inputs.get('dregs_cake_solids_pct', DEFAULTS['dregs_cake_solids_pct'])
     dregs_shower_ratio = inputs.get('dregs_shower_ratio', DEFAULTS['dregs_shower_ratio'])
+    dregs_filtrate_sewer_pct = inputs.get('dregs_filtrate_sewer_pct', DEFAULTS['dregs_filtrate_sewer_pct'])
     grits_lb_bdt = inputs.get('grits_lb_bdt', DEFAULTS['grits_lb_bdt'])
     grits_solids_pct = inputs.get('grits_solids_pct', DEFAULTS['grits_solids_pct'])
 
@@ -1237,6 +1244,7 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
             gl_density_lb_gal=gl_density_lb_gal,
             dregs_cake_solids_pct=dregs_cake_solids_pct,
             dregs_shower_ratio=dregs_shower_ratio,
+            dregs_filtrate_sewer_pct=dregs_filtrate_sewer_pct,
             # DT energy balance
             smelt_temp_f=smelt_temp_f,
             ww_temp_f=ww_temp_f,
@@ -1496,6 +1504,7 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
     results['ww_flow_solved_gpm'] = inner['ww_flow_solved_gpm']
     results['ww_flow_input_gpm'] = ww_flow  # Original fixed input for reference
     results['dregs_filtrate_gpm'] = inner['dregs_filtrate_gpm']
+    results['dregs_filtrate_return_gpm'] = inner['dregs_filtrate_return_gpm']
 
     # GL steam heater
     results['gl_heater_steam_lb_hr'] = inner['gl_heater_steam_lb_hr']

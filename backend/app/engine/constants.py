@@ -276,6 +276,7 @@ DEFAULTS = {
     'glc_underflow_solids_pct': 0.077,  # B65 — GLC underflow solids fraction (7.70%)
     'dregs_cake_solids_pct': 0.365,     # Dregs filter cake solids fraction (36.5%)
     'dregs_shower_ratio': 6.0,          # Dregs filter shower water lb/lb solids
+    'dregs_filtrate_sewer_pct': 0.0,    # Fraction of dregs filtrate sent to sewer (0 = all returns)
     'grits_lb_bdt': 8.53,              # B73 — Grits losses lb/BDT (input)
     'grits_solids_pct': 0.40,          # B75 — Grits solids fraction (40%)
 

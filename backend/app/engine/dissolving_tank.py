@@ -130,7 +130,7 @@ def calculate_dissolving_tank(
     # From iteration (underflows + semichem GL)
     underflow_dregs_gpm: float = 0.0,     # 3_Chem!B69
     semichem_gl_gpm: float = 0.0,         # 3_Chem!G5
-    # Dregs filter filtrate return (to WW tank → DT)
+    # Dregs filter filtrate return (enters GL before GLC, NOT in DT)
     filtrate_return_gpm: float = 0.0,
     filtrate_tta_g_L: float = 0.0,
     filtrate_sulfidity: float = 0.0,
@@ -151,7 +151,7 @@ def calculate_dissolving_tank(
     - GL flow to slaker is part of the circular reference
     - Uses lb/ft3 units (not g/L) matching Excel
     - Expansion factor B77 applied to smelt mass
-    - Optional dregs filter filtrate return adds flow and TTA to DT
+    - Dregs filter filtrate return enters GL before GLC (not in DT)
     - Energy balance computes steam evaporated from hot smelt
     """
     # B77: Expansion factor = 1.7097 - 0.0045 * smelt_sulfidity%
@@ -176,11 +176,12 @@ def calculate_dissolving_tank(
     # 0.00025 is the Excel conversion factor gpm*g/L -> ton/hr
     i46 = ww_flow_gpm * ww_tta_lb_ft3 * 16.01 * 0.00025
 
-    # Dregs filter filtrate TTA mass (returns to WW tank → enters DT)
+    # Dregs filter filtrate TTA/S mass (enters GL before GLC, not the DT itself)
     filtrate_tta_ton_hr = filtrate_return_gpm * filtrate_tta_g_L * 0.00025 if filtrate_return_gpm > 0 else 0.0
     filtrate_s_ton_hr = filtrate_tta_ton_hr * filtrate_sulfidity
 
     # ── Energy Balance: steam evaporated by hot smelt ──
+    # Only DT contents participate: smelt + WW + shower (NOT filtrate)
     energy = calculate_dt_energy_balance(
         smelt_mass_lb_hr=i44 * 2000,
         ww_flow_gpm=ww_flow_gpm,
@@ -193,23 +194,25 @@ def calculate_dissolving_tank(
         latent_heat=latent_heat,
     )
 
-    # I57: Total dissolving flow (gpm) = smelt + shower + WW + filtrate - steam
-    # Steam removes water as vapor, reducing liquid flow
-    i57 = i55 + shower_flow_gpm + ww_flow_gpm + filtrate_return_gpm - energy.steam_evaporated_gpm
+    # DT outlet flow (gpm) = smelt + shower + WW - steam (physical DT only)
+    dt_outlet_gpm = i55 + shower_flow_gpm + ww_flow_gpm - energy.steam_evaporated_gpm
 
-    # I58: GL flow to slaker (gpm) = total - dregs underflow - semichem
-    # Grits are removed at the slaker, not here at the GL clarifier
-    # This is the CIRCULAR variable
+    # I57: GL total flow before GLC (gpm) = DT outlet + filtrate return
+    # Filtrate enters GL stream after DT, before GLC (does not affect DT energy balance)
+    i57 = dt_outlet_gpm + filtrate_return_gpm
+
+    # I58: GL flow to slaker (gpm) = GL total - dregs underflow (at GLC) - semichem draw
+    # GLC: suspended solids settle → underflow (dregs) removed, overflow (clarified GL) to slaker
     i58 = i57 - underflow_dregs_gpm - semichem_gl_gpm
 
-    # I59: Dissolving TTA mass (ton/hr) = smelt_TTA + WW_TTA + filtrate_TTA
+    # I59: GL TTA mass (ton/hr) = smelt_TTA + WW_TTA + filtrate_TTA
     # TTA mass is CONSERVED — steam removes water only, not dissolved solids
     i59 = i45 + i46 + filtrate_tta_ton_hr
 
     # I62: WW S mass (ton/hr) = I46 * ww_sulfidity
     i62 = i46 * ww_sulfidity
 
-    # I61: Dissolving S mass (ton/hr) = smelt_active_sulfide/2000 + WW_S + filtrate_S
+    # I61: GL S mass (ton/hr) = smelt_active_sulfide/2000 + WW_S + filtrate_S
     i61 = smelt_active_sulfide / 2000.0 + i62 + filtrate_s_ton_hr
 
     # I60: Dissolving sulfidity = S_mass / TTA_mass
@@ -287,8 +290,8 @@ def calculate_ww_flow_for_tta_target(
     # From iteration (underflows + semichem GL)
     underflow_dregs_gpm: float = 0.0,     # 3_Chem!B69
     semichem_gl_gpm: float = 0.0,         # 3_Chem!G5
-    # Optional: dregs filtrate return
-    dregs_filtrate_gpm: float = 0.0,  # Filtrate flow returning to DT (gpm)
+    # Dregs filter filtrate return (enters GL before GLC, not in DT)
+    dregs_filtrate_gpm: float = 0.0,  # Filtrate return flow (after sewer split, gpm)
     filtrate_tta_g_L: float = 0.0,    # Filtrate TTA concentration (g/L)
     # Energy balance parameters
     smelt_temp_f: float = 1338.0,
@@ -312,10 +315,10 @@ def calculate_ww_flow_for_tta_target(
         tuple of (ww_flow_gpm, DissolvingTankResult)
 
     The math (with energy balance):
-        GL_flow = Smelt_flow + WW_flow + Shower - Subtractions - Steam(WW)
-        Steam(WW) = steam_base - WW × steam_per_ww  (more WW absorbs more heat)
-        GL_flow = (base_flow - steam_base) + WW × (1 + steam_per_ww)
-        TTA_mass_in = GL_TTA_target × GL_flow  (mass balance)
+        DT_flow = Smelt + WW + Shower - Steam(WW)   (physical DT outlet)
+        GL_flow = DT_flow + Filtrate_return          (filtrate enters GL before GLC)
+        Steam(WW) = steam_base - WW × steam_per_ww   (more WW absorbs more heat)
+        TTA_mass = smelt_tta + ww_tta + filtrate_tta = GL_TTA_target × GL_flow
 
     Solving for WW_flow is still linear (analytical solution).
     """
@@ -371,19 +374,19 @@ def calculate_ww_flow_for_tta_target(
     steam_per_ww = dt_ww / latent_heat  # gpm steam reduction per gpm WW
 
     # ── Adjusted flow balance with energy ──
-    # GL_flow = (smelt + shower + filtrate - subtractions - steam_base) + WW × (1 + steam_per_ww)
+    # DT outlet = smelt + shower - steam_base + WW × (1 + steam_per_ww)
+    # GL flow = DT outlet + filtrate_return  (filtrate enters GL after DT, before GLC)
     # Each gpm of WW contributes (1 + steam_per_ww) gpm to GL flow because
     # WW absorbs heat that would have evaporated (steam_per_ww) gpm of water.
-    # DT is well-mixed: all outflows (slaker + dregs + grits + semichem) leave at the SAME
-    # concentration. Subtractions happen downstream of the DT and don't affect mixing balance.
-    adjusted_base = smelt_flow_gpm + shower_flow_gpm + dregs_filtrate_gpm - steam_base_gpm
+    # GLC: all outflows (slaker + dregs + semichem) leave at SAME concentration.
+    dt_base = smelt_flow_gpm + shower_flow_gpm - steam_base_gpm  # DT outlet (no filtrate)
     ww_gl_factor = 1 + steam_per_ww  # effective GL flow contribution per gpm WW
 
-    # Mass balance with energy-adjusted flows:
-    # smelt_tta + WW × ww_factor + filtrate_tta = gl_factor × (adjusted_base + WW × ww_gl_factor)
-    # WW × (ww_factor - gl_factor × ww_gl_factor) = gl_factor × adjusted_base - smelt_tta - filtrate_tta
+    # Mass balance: TTA_in = gl_target × GL_flow
+    # smelt_tta + WW × ww_factor + filt_tta = gl_factor × (dt_base + filt_return + WW × ww_gl_factor)
+    # WW × (ww_factor - gl_factor × ww_gl_factor) = gl_factor × (dt_base + filt_return) - smelt_tta - filt_tta
 
-    numerator = gl_tta_factor * adjusted_base - smelt_tta_ton_hr - filtrate_tta_ton_hr
+    numerator = gl_tta_factor * (dt_base + dregs_filtrate_gpm) - smelt_tta_ton_hr - filtrate_tta_ton_hr
     denominator = ww_tta_factor - gl_tta_factor * ww_gl_factor
 
     if abs(denominator) < 1e-10:
