@@ -348,6 +348,10 @@ class CalculationRequest(BaseModel):
                 ))
             d['dissolving_tanks'] = dt_configs
 
+        # Mill-level process flags (read from mill config, not user input)
+        if mill.defaults.get('makeup_after_wlc'):
+            d['makeup_after_wlc'] = True
+
         # Overrides
         if self.s_deficit_lbs_hr is not None:
             d['s_deficit_lbs_hr'] = self.s_deficit_lbs_hr
