@@ -160,8 +160,10 @@ def calculate_dissolving_tank(
     # I45: Smelt TTA mass (ton/hr) = B34 / 2000
     i45 = smelt_tta_lbs_hr / 2000.0
 
-    # I44: Total smelt mass (ton/hr) = I45 * B77 + B33/2000
-    i44 = i45 * b77 + smelt_dead_load / 2000.0
+    # I44: Total smelt mass (ton/hr) = I45 * B77 + dead_load_actual/2000
+    # Dead load is unreduced Na2SO4 but stored as Na2O equiv — convert to actual mass
+    dead_load_actual_lb = smelt_dead_load * (142.04 / 62.0)  # Na2O → Na2SO4
+    i44 = i45 * b77 + dead_load_actual_lb / 2000.0
 
     # I55: Smelt flow (gpm) = ((I44 * 33.3333) / smelt_density) * 7.48
     # 33.3333 = 2000 lb/ton / 60 min/hr = converts ton/hr to lb/min
@@ -323,8 +325,10 @@ def calculate_ww_flow_for_tta_target(
     # I45: Smelt TTA mass (ton/hr) = B34 / 2000
     smelt_tta_ton_hr = smelt_tta_lbs_hr / 2000.0
 
-    # I44: Total smelt mass (ton/hr) = I45 * B77 + B33/2000
-    smelt_total_mass = smelt_tta_ton_hr * b77 + smelt_dead_load / 2000.0
+    # I44: Total smelt mass (ton/hr) = I45 * B77 + dead_load_actual/2000
+    # Dead load is unreduced Na2SO4 but stored as Na2O equiv — convert to actual mass
+    dead_load_actual_lb = smelt_dead_load * (142.04 / 62.0)  # Na2O → Na2SO4
+    smelt_total_mass = smelt_tta_ton_hr * b77 + dead_load_actual_lb / 2000.0
 
     # I55: Smelt flow (gpm)
     smelt_flow_gpm = ((smelt_total_mass * 33.3333) / smelt_density_lb_ft3) * 7.48
