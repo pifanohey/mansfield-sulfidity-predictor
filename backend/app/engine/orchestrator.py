@@ -850,6 +850,9 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
     gl_target_tta_lb_ft3 = inputs.get('gl_target_tta_lb_ft3', DEFAULTS['gl_target_tta_lb_ft3'])
     gl_causticity = inputs.get('gl_causticity', DEFAULTS.get('gl_causticity', 0.1016))
 
+    # BL density offset (mill-specific calibration)
+    bl_density_offset = inputs.get('bl_density_offset', -0.1)
+
     # DT energy balance
     smelt_temp_f = inputs.get('smelt_temp_f', DEFAULTS['smelt_temp_f'])
     ww_temp_f = inputs.get('ww_temp_f', DEFAULTS['ww_temp_f'])
@@ -1118,6 +1121,7 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
                 rb_losses_na2o_bdt=rb_losses_na2o_bdt,
                 total_production_bdt_day=rb_prod,
                 saltcake_flow_lb_hr=rb_saltcake,
+                bl_density_offset=bl_density_offset,
             )
             per_rb_inputs_list.append(rb_inp)
             per_rb_smelt_list.append(rb_sme)
@@ -1172,6 +1176,7 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
                     rb_losses_na2o_bdt=rb_losses_na2o_bdt,
                     total_production_bdt_day=rb_prod,
                     saltcake_flow_lb_hr=rb_saltcake,
+                    bl_density_offset=bl_density_offset,
                 )
                 per_rb_inputs_list.append(rb_inp)
                 per_rb_smelt_list.append(rb_sme)

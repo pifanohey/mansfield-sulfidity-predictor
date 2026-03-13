@@ -391,6 +391,8 @@ class CalculationRequest(BaseModel):
             d['smelt_cp_btu_lb_f'] = mill.defaults['smelt_cp_btu_lb_f']
         if 'latent_heat_212_btu_lb' in mill.defaults:
             d['latent_heat_212_btu_lb'] = mill.defaults['latent_heat_212_btu_lb']
+        if 'bl_density_offset' in mill.defaults:
+            d['bl_density_offset'] = mill.defaults['bl_density_offset']
 
         # CTO
         d['cto_h2so4_per_ton'] = self.cto_h2so4_per_ton

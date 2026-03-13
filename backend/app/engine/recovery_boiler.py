@@ -98,6 +98,7 @@ def calculate_full_rb(
     rb_losses_na2o_bdt: float,      # B16 = 3.60 lb Na2O/BDT
     total_production_bdt_day: float, # B2 = 1888
     saltcake_flow_lb_hr: float = 0.0, # B40 = 2227 lb Na2SO4/hr
+    bl_density_offset: float = -0.1,  # B10 offset — mill-specific calibration
 ) -> Tuple[RecoveryBoilerInputs, SmeltComposition]:
     """
     Calculate complete RB outputs using the full Excel calculation chain.
@@ -109,7 +110,7 @@ def calculate_full_rb(
     - RB losses are CALCULATED from per-BDT value × production
     """
     # ── Step 1: BL density (B10) ──
-    bl_density = calculate_bl_density(bl_tds_pct, bl_temp_f, offset=-0.1)
+    bl_density = calculate_bl_density(bl_tds_pct, bl_temp_f, offset=bl_density_offset)
 
     # ── Step 2: Dry solids (B8 = Virgin+Ash) ──
     # B8 t/day = (flow × density / 2000) × 60 × 24 × (TDS/100)
