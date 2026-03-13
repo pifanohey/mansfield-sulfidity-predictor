@@ -21,18 +21,41 @@ const f2 = (v: number) => fmtNum(v, 2);
 function FlowCard({ title, children, accent }: {
   title: string;
   children: React.ReactNode;
-  accent?: "cyan" | "amber" | "pink" | "green" | "purple" | "orange";
+  accent?: "cyan" | "amber" | "pink" | "green" | "purple" | "orange" | "red";
 }) {
   const borderColor = accent
     ? { cyan: "border-cyan/20", amber: "border-amber-400/20", pink: "border-pink-400/20",
-        green: "border-emerald-400/20", purple: "border-violet-400/20", orange: "border-orange-400/20" }[accent]
+        green: "border-emerald-400/20", purple: "border-violet-400/20",
+        orange: "border-orange-400/20", red: "border-red-400/20" }[accent]
     : "border-white/[0.08]";
   return (
-    <div className={`rounded-lg border ${borderColor} bg-white/[0.03] p-3 min-w-[180px]`}>
+    <div className={`rounded-lg border ${borderColor} bg-white/[0.03] p-3 min-w-[170px]`}>
       <div className="mb-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.15em] text-white truncate">
         {title}
       </div>
       <div className="space-y-0.5 font-mono text-xs tabular-nums">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function InputCard({ title, children, accent }: {
+  title: string;
+  children: React.ReactNode;
+  accent?: "cyan" | "amber" | "pink" | "green" | "purple" | "orange" | "red";
+}) {
+  const borderColor = accent
+    ? { cyan: "border-cyan/20", amber: "border-amber-400/20", pink: "border-pink-400/20",
+        green: "border-emerald-400/20", purple: "border-violet-400/20",
+        orange: "border-orange-400/20", red: "border-red-400/20" }[accent]
+    : "border-white/[0.08]";
+  return (
+    <div className={`rounded-lg border ${borderColor} bg-white/[0.03] p-2.5 min-w-[140px]`}>
+      <div className="mb-1 font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-white truncate">
+        {title}
+      </div>
+      <div className="space-y-0.5 font-mono text-[11px] tabular-nums">
         {children}
       </div>
     </div>
@@ -48,26 +71,20 @@ function Row({ label, value, color }: { label: string; value: string; color?: st
   );
 }
 
+function SmallRow({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div className="flex justify-between gap-2">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={color ?? "text-white"}>{value}</span>
+    </div>
+  );
+}
+
 function Arrow({ direction }: { direction: "right" | "down" | "left" | "up" }) {
   const arrows = { right: "\u2192", down: "\u2193", left: "\u2190", up: "\u2191" };
   return (
     <div className="flex items-center justify-center text-xl text-white/20 font-bold px-1">
       {arrows[direction]}
-    </div>
-  );
-}
-
-function Annotation({ title, items, color = "text-cyan" }: {
-  title: string; items: { label: string; value: string }[]; color?: string;
-}) {
-  return (
-    <div className="text-center mt-1.5 leading-tight font-mono">
-      <div className={`text-[10px] font-medium ${color}`}>{title}</div>
-      {items.map((it) => (
-        <div key={it.label} className={`text-[10px] ${color}/70`}>
-          {it.label}: {it.value}
-        </div>
-      ))}
     </div>
   );
 }
@@ -155,24 +172,59 @@ export default function RecaustFlowDiagram({
       <CardContent>
         <div className="overflow-x-auto">
 
-          {/* ═══ ROW 1: CTO Feed → Dissolving Tank → GL Clarifier → Slaker ═══ */}
-          <div className="flex items-start gap-1 mb-2">
+          {/* ═══ SECTION 1: DT INPUT STREAMS ═══ */}
+          <div className="font-mono text-[10px] font-medium uppercase tracking-[0.15em] text-amber-400 mb-2">
+            Inputs
+          </div>
+          <div className="flex items-start gap-2 flex-wrap mb-1">
             {/* CTO / BL Feed */}
-            <div>
-              <FlowCard title="CTO S → BL Feed" accent="orange">
-                <Row label="CTO S:" value={`${f1(ctoSLbHr)} lb/hr`} />
-                <Row label="BL S% (lab):" value={`${f2(blSPctLab)}%`} />
-                <Row label="Adj BL S%:" value={`${f2(blSPctUsed)}%`} color="text-emerald-400" />
-                <div className="text-[10px] text-muted-foreground text-center pt-0.5">
-                  {Math.abs(blSPctUsed - blSPctLab) < 0.005
-                    ? "No CTO delta"
-                    : `\u0394 ${(blSPctUsed - blSPctLab) >= 0 ? "+" : ""}${(blSPctUsed - blSPctLab).toFixed(3)}%`}
-                </div>
-              </FlowCard>
+            <InputCard title="CTO S → BL Feed" accent="orange">
+              <SmallRow label="CTO S:" value={`${f1(ctoSLbHr)} lb/hr`} />
+              <SmallRow label="BL S% (lab):" value={`${f2(blSPctLab)}%`} />
+              <SmallRow label="Adj BL S%:" value={`${f2(blSPctUsed)}%`} color="text-emerald-400" />
+              <div className="text-[9px] text-muted-foreground text-center pt-0.5">
+                {Math.abs(blSPctUsed - blSPctLab) < 0.005
+                  ? "No CTO delta"
+                  : `\u0394 ${(blSPctUsed - blSPctLab) >= 0 ? "+" : ""}${(blSPctUsed - blSPctLab).toFixed(3)}%`}
+              </div>
+            </InputCard>
+
+            {/* Recovery Boiler Smelt */}
+            <InputCard title="Recovery Boiler Smelt" accent="red">
+              <SmallRow label="Flow:" value={`${f1(smeltGpm)} gpm`} color="text-cyan" />
+              <SmallRow label="Sulfidity:" value={`${f2(smeltSulf)}%`} color="text-pink-400" />
+              <SmallRow label="TTA:" value={`${f1(smeltTTA)} lb Na\u2082O/hr`} />
+            </InputCard>
+
+            {/* Weak Wash (solved) */}
+            <InputCard title="Weak Wash (solved)" accent="green">
+              <SmallRow label="Flow:" value={`${f1(wwSolved)} gpm`} color="text-cyan" />
+              <div className="text-[9px] text-muted-foreground">
+                Analytical solve for GL TTA target
+              </div>
+            </InputCard>
+
+            {/* Shower Water */}
+            <InputCard title="Shower Water" accent="purple">
+              <SmallRow label="Flow:" value={`${f1(showerFlowGpm)} gpm`} color="text-cyan" />
+            </InputCard>
+
+            {/* Dregs Filtrate Return */}
+            <InputCard title="Dregs Filtrate (return)" accent="amber">
+              <SmallRow label="Flow:" value={`${f1(filtGpm)} gpm`} color="text-cyan" />
+            </InputCard>
+          </div>
+
+          {/* Converging arrow */}
+          <div className="flex items-center gap-2 my-1 ml-4">
+            <div className="text-lg text-white/20 font-bold">{"\u2193"}</div>
+            <div className="font-mono text-[10px] text-muted-foreground italic">
+              All streams feed into Dissolving Tank ({f1(totalIn)} gpm total)
             </div>
+          </div>
 
-            <Arrow direction="right" />
-
+          {/* ═══ SECTION 2: DT → GLC → SLAKER ═══ */}
+          <div className="flex items-start gap-1 mb-1">
             {/* Dissolving Tank */}
             <div>
               <FlowCard title="Dissolving Tank" accent="cyan">
@@ -182,12 +234,6 @@ export default function RecaustFlowDiagram({
                 <Row label="TTA:" value={`${f1(glTTA)} g/L`} color="text-emerald-400" />
                 <Row label="Sulfidity:" value={`${f1(glSulfPct)}%`} color="text-pink-400" />
               </FlowCard>
-              <Annotation title="DT Inputs" color="text-amber-400" items={[
-                { label: "Smelt", value: `${f1(smeltGpm)} gpm (Sulf ${f2(smeltSulf)}%, TTA ${f1(smeltTTA)} lb/hr)` },
-                { label: "WW (solved)", value: `${f1(wwSolved)} gpm` },
-                { label: "Shower", value: `${f1(showerFlowGpm)} gpm` },
-                { label: "Filtrate", value: `${f1(filtGpm)} gpm` },
-              ]} />
             </div>
 
             <Arrow direction="right" />
@@ -200,11 +246,14 @@ export default function RecaustFlowDiagram({
                 <Row label="Na\u2082S:" value={`${f1(glNa2S)} g/L`} />
                 <Row label="Sulfidity:" value={`${f1(glSulfPct)}%`} color="text-pink-400" />
               </FlowCard>
-              <Annotation title="GL Subtractions" color="text-violet-400" items={[
-                { label: "Dregs UF", value: `-${f1(dregsUF)} gpm` },
-                { label: "Semichem GL", value: `-${f1(semiGL)} gpm` },
-                { label: "Total removed", value: `-${f1(totalRemoved)} gpm` },
-              ]} />
+              <div className="text-center mt-1.5 leading-tight font-mono">
+                <div className="text-[10px] font-medium text-violet-400">Subtractions</div>
+                <div className="text-[10px] text-violet-400/70">Dregs UF: -{f1(dregsUF)} gpm</div>
+                {semiGL > 0 && (
+                  <div className="text-[10px] text-violet-400/70">Semichem GL: -{f1(semiGL)} gpm</div>
+                )}
+                <div className="text-[10px] text-violet-400/70">Total removed: -{f1(totalRemoved)} gpm</div>
+              </div>
             </div>
 
             <Arrow direction="right" />
@@ -223,29 +272,32 @@ export default function RecaustFlowDiagram({
           </div>
 
           {/* ═══ TRANSITION: Slaker → WLC path ═══ */}
-          <div className="flex justify-end items-center px-8 my-1">
+          <div className="flex items-center gap-2 my-1 ml-4">
+            <div className="text-lg text-white/20 font-bold">{"\u2193"}</div>
             <div className="font-mono text-[10px] text-muted-foreground italic">
-              WL from slaker: {f1(wlFromSlaker)} GPM {"\u2193"}
+              WL from slaker: {f1(wlFromSlaker)} GPM
             </div>
           </div>
 
-          {/* ═══ ROW 2: WLC path (conditional on makeup injection point) ═══ */}
-          <div className="flex items-start gap-1 justify-end">
+          {/* ═══ SECTION 3: WLC → MAKEUP → FINAL WL ═══ */}
+          <div className="flex items-start gap-1">
             {makeupAfterWlc ? (
               <>
                 {/* Mansfield flow: WLC (clean) → Makeup Addition → Final WL */}
                 <div>
-                  <FlowCard title="Final WL to Digesters" accent="cyan">
-                    <Row label="EA:" value={`${f2(finalEA)} g/L`} color="text-cyan" />
-                    <Row label="TTA:" value={`${f1(finalTTA)} g/L`} color="text-emerald-400" />
-                    <Row label="AA:" value={`${f1(finalAA)} g/L`} />
-                    <Row label="NaOH:" value={`${f1(finalNaOH)} g/L`} />
-                    <Row label="Na\u2082CO\u2083:" value={`${f1(finalNa2CO3)} g/L`} />
-                    <Row label="Sulfidity:" value={`${f2(finalSulf)}%`} color="text-pink-400" />
+                  <FlowCard title="WL Clarifier" accent="cyan">
+                    <div className="text-[10px] text-muted-foreground text-center mb-0.5">(no makeup added)</div>
+                    <Row label="-Grits:" value={`-${f1(gritsGpm)} gpm`} color="text-violet-400" />
+                    <Row label="-Mud UF:" value={`-${f1(mudUF)} gpm`} color="text-red-400" />
+                    <div className="border-t border-white/[0.06] mt-1 pt-1">
+                      <Row label="Overflow:" value={`${f1(wlcCleanOverflow)} GPM`} color="text-cyan" />
+                      <Row label="TTA:" value={`${f1(wlcCleanTTA)} g/L`} color="text-emerald-400" />
+                      <Row label="Sulfidity:" value={`${f2(wlcCleanSulf)}%`} color="text-pink-400" />
+                    </div>
                   </FlowCard>
                 </div>
 
-                <Arrow direction="left" />
+                <Arrow direction="right" />
 
                 <div>
                   <FlowCard title="Makeup Addition" accent="amber">
@@ -259,26 +311,10 @@ export default function RecaustFlowDiagram({
                   </FlowCard>
                 </div>
 
-                <Arrow direction="left" />
+                <Arrow direction="right" />
 
                 <div>
-                  <FlowCard title="WL Clarifier" accent="cyan">
-                    <div className="text-[10px] text-muted-foreground text-center mb-0.5">(no makeup added)</div>
-                    <Row label="-Grits:" value={`-${f1(gritsGpm)} gpm`} color="text-violet-400" />
-                    <Row label="-Mud UF:" value={`-${f1(mudUF)} gpm`} color="text-red-400" />
-                    <div className="border-t border-white/[0.06] mt-1 pt-1">
-                      <Row label="Overflow:" value={`${f1(wlcCleanOverflow)} GPM`} color="text-cyan" />
-                      <Row label="TTA:" value={`${f1(wlcCleanTTA)} g/L`} color="text-emerald-400" />
-                      <Row label="Sulfidity:" value={`${f2(wlcCleanSulf)}%`} color="text-pink-400" />
-                    </div>
-                  </FlowCard>
-                </div>
-              </>
-            ) : (
-              <>
-                {/* Pine Hill flow: WLC + Makeup → Final WL */}
-                <div>
-                  <FlowCard title="Final WL to Digesters" accent="cyan">
+                  <FlowCard title="Final WL to Digesters" accent="green">
                     <Row label="EA:" value={`${f2(finalEA)} g/L`} color="text-cyan" />
                     <Row label="TTA:" value={`${f1(finalTTA)} g/L`} color="text-emerald-400" />
                     <Row label="AA:" value={`${f1(finalAA)} g/L`} />
@@ -287,9 +323,10 @@ export default function RecaustFlowDiagram({
                     <Row label="Sulfidity:" value={`${f2(finalSulf)}%`} color="text-pink-400" />
                   </FlowCard>
                 </div>
-
-                <Arrow direction="left" />
-
+              </>
+            ) : (
+              <>
+                {/* Pine Hill flow: WLC + Makeup → Final WL */}
                 <div>
                   <FlowCard title="WL Clarifier + Makeup" accent="cyan">
                     <Row label="-Grits:" value={`-${f1(gritsGpm)} gpm`} color="text-violet-400" />
@@ -300,6 +337,19 @@ export default function RecaustFlowDiagram({
                       <Row label="Overflow:" value={`~${f1(wlcOverflow)} GPM`} color="text-cyan" />
                       <Row label="Sulfidity:" value={`~${f2(finalSulf)}%`} color="text-pink-400" />
                     </div>
+                  </FlowCard>
+                </div>
+
+                <Arrow direction="right" />
+
+                <div>
+                  <FlowCard title="Final WL to Digesters" accent="green">
+                    <Row label="EA:" value={`${f2(finalEA)} g/L`} color="text-cyan" />
+                    <Row label="TTA:" value={`${f1(finalTTA)} g/L`} color="text-emerald-400" />
+                    <Row label="AA:" value={`${f1(finalAA)} g/L`} />
+                    <Row label="NaOH:" value={`${f1(finalNaOH)} g/L`} />
+                    <Row label="Na\u2082CO\u2083:" value={`${f1(finalNa2CO3)} g/L`} />
+                    <Row label="Sulfidity:" value={`${f2(finalSulf)}%`} color="text-pink-400" />
                   </FlowCard>
                 </div>
               </>
