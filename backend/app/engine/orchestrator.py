@@ -160,6 +160,56 @@ def _combine_dt_inputs(
     }
 
 
+def _mix_makeup_into_wlc_overflow(
+    wlc_clean,
+    nash_gpm, naoh_gpm,
+    tta_from_nash_ton_hr, tta_from_naoh_ton_hr,
+    na2s_from_nash_ton_hr,
+):
+    """Mix makeup chemicals into WLC overflow (post-WLC injection).
+
+    Used for Mansfield-style process flow where NaSH/NaOH are added AFTER
+    the WL clarifier overflow, not before. The WLC only sees slaker output;
+    makeup bypasses the clarifier entirely.
+
+    Returns a WLCResult with the mixed composition.
+    """
+    conv_out = CONV['GPM_GL_TO_LB_HR'] / 2000
+
+    # NaOH mass from WLC overflow (derived from AA - Na2S)
+    wlc_naoh_gL = wlc_clean.final_aa_g_L - wlc_clean.final_na2s_g_L
+    wlc_naoh_mass = wlc_naoh_gL * wlc_clean.wl_overflow_gpm * conv_out
+
+    # Mixed flow and masses
+    flow = wlc_clean.wl_overflow_gpm + nash_gpm + naoh_gpm
+    tta_mass = wlc_clean.final_tta_mass_ton_hr + tta_from_nash_ton_hr + tta_from_naoh_ton_hr
+    na2s_mass = wlc_clean.final_na2s_mass_ton_hr + na2s_from_nash_ton_hr
+    naoh_mass = wlc_naoh_mass + tta_from_naoh_ton_hr
+
+    # Concentrations from mass / flow
+    if flow > 0 and conv_out > 0:
+        tta_gL = tta_mass / (flow * conv_out)
+        na2s_gL = na2s_mass / (flow * conv_out)
+        naoh_gL = naoh_mass / (flow * conv_out)
+    else:
+        tta_gL = na2s_gL = naoh_gL = 0.0
+
+    return WLCResult(
+        total_wl_to_wlc_gpm=wlc_clean.total_wl_to_wlc_gpm,
+        underflow_gpm=wlc_clean.underflow_gpm,
+        wl_overflow_gpm=flow,
+        tta_lost_in_underflow_ton_hr=wlc_clean.tta_lost_in_underflow_ton_hr,
+        na2s_lost_in_underflow_ton_hr=wlc_clean.na2s_lost_in_underflow_ton_hr,
+        final_tta_mass_ton_hr=tta_mass,
+        final_na2s_mass_ton_hr=na2s_mass,
+        final_sulfidity_pct=na2s_mass / tta_mass * 100 if tta_mass > 0 else 0.0,
+        final_tta_g_L=tta_gL,
+        final_na2s_g_L=na2s_gL,
+        final_ea_g_L=naoh_gL + 0.5 * na2s_gL,
+        final_aa_g_L=naoh_gL + na2s_gL,
+    )
+
+
 def _run_inner_loop(
     smelt, saltcake_na, saltcake_s, cto_s,
     ww_flow, ww_tta_lb_ft3, ww_sulfidity, shower_flow, smelt_density,
@@ -180,6 +230,8 @@ def _run_inner_loop(
     ww_na_lb_hr=0.0,   # Wash water Na return (element Na lb/hr) — subtracted from Na deficit
     nash_override=None,  # Override NaSH (lb/hr) for Secant iteration
     naoh_dry_override=None,  # Override NaOH (lb/hr) — bypasses dual-constraint
+    # Process flow configuration
+    makeup_after_wlc=False,  # If True, NaSH/NaOH added AFTER WLC overflow (Mansfield)
     # Dregs filter parameters (for WW flow solve)
     dregs_solids_lb_hr=0.0,
     glc_underflow_solids_pct=0.077,
@@ -227,6 +279,7 @@ def _run_inner_loop(
     converged = False
     iterations = 0
     prev_wlc_stage2 = None  # Previous iteration's Stage 2 WLC result
+    wlc_clean = None  # WLC result without makeup (for makeup_after_wlc mode)
 
     for iteration in range(MAX_ITER):
         # ══════════════════════════════════════════════════════════════════════
@@ -337,26 +390,58 @@ def _run_inner_loop(
         # ─────────────────────────────────────────────────────────────────────
         # WLC STAGE 1: NaSH only → get final_ea_g_L reflecting CE
         # ─────────────────────────────────────────────────────────────────────
-        wlc_stage1 = calculate_wlc(
-            wl_flow_from_slaker_gpm=slaker_result.wl_flow_gpm,
-            wl_tta_mass_ton_hr=wl_tta_mass_from_slaker,
-            wl_na2s_mass_ton_hr=wl_na2s_mass_from_slaker,
-            wl_sulfidity=slaker_result.wl_sulfidity,
-            wl_tta_g_L=slaker_result.wl_tta_g_L,
-            nash_gpm=nash_gpm,
-            naoh_gpm=0.0,  # NaOH not added yet
-            tta_from_makeup_ton_hr=tta_from_nash,
-            na2s_from_makeup_ton_hr=na2s_from_nash,
-            wl_naoh_mass_ton_hr=slaker_result.wl_naoh_mass_ton_hr,
-            naoh_from_makeup_ton_hr=0.0,  # No NaOH makeup in Stage 1
-            grits_entrained_gpm=grits_entrained_gpm,
-            intrusion_water_gpm=intrusion_water,
-            dilution_water_gpm=dilution_water,
-            underflow_solids_pct=wlc_underflow_solids,
-            mud_density=wlc_mud_density,
-            lime_mud_lb_hr=slaker_result.lime_mud_total_lb_hr,
-            causticity=causticity,
-        )
+        if makeup_after_wlc:
+            # Mansfield flow: WLC sees only slaker output (no makeup)
+            wlc_clean = calculate_wlc(
+                wl_flow_from_slaker_gpm=slaker_result.wl_flow_gpm,
+                wl_tta_mass_ton_hr=wl_tta_mass_from_slaker,
+                wl_na2s_mass_ton_hr=wl_na2s_mass_from_slaker,
+                wl_sulfidity=slaker_result.wl_sulfidity,
+                wl_tta_g_L=slaker_result.wl_tta_g_L,
+                nash_gpm=0.0,
+                naoh_gpm=0.0,
+                tta_from_makeup_ton_hr=0.0,
+                na2s_from_makeup_ton_hr=0.0,
+                wl_naoh_mass_ton_hr=slaker_result.wl_naoh_mass_ton_hr,
+                naoh_from_makeup_ton_hr=0.0,
+                grits_entrained_gpm=grits_entrained_gpm,
+                intrusion_water_gpm=intrusion_water,
+                dilution_water_gpm=dilution_water,
+                underflow_solids_pct=wlc_underflow_solids,
+                mud_density=wlc_mud_density,
+                lime_mud_lb_hr=slaker_result.lime_mud_total_lb_hr,
+                causticity=causticity,
+            )
+            # Mix NaSH into WLC overflow for EA demand calculation
+            wlc_stage1 = _mix_makeup_into_wlc_overflow(
+                wlc_clean,
+                nash_gpm=nash_gpm, naoh_gpm=0.0,
+                tta_from_nash_ton_hr=tta_from_nash,
+                tta_from_naoh_ton_hr=0.0,
+                na2s_from_nash_ton_hr=na2s_from_nash,
+            )
+        else:
+            # Pine Hill flow: NaSH enters WLC (original behavior)
+            wlc_stage1 = calculate_wlc(
+                wl_flow_from_slaker_gpm=slaker_result.wl_flow_gpm,
+                wl_tta_mass_ton_hr=wl_tta_mass_from_slaker,
+                wl_na2s_mass_ton_hr=wl_na2s_mass_from_slaker,
+                wl_sulfidity=slaker_result.wl_sulfidity,
+                wl_tta_g_L=slaker_result.wl_tta_g_L,
+                nash_gpm=nash_gpm,
+                naoh_gpm=0.0,
+                tta_from_makeup_ton_hr=tta_from_nash,
+                na2s_from_makeup_ton_hr=na2s_from_nash,
+                wl_naoh_mass_ton_hr=slaker_result.wl_naoh_mass_ton_hr,
+                naoh_from_makeup_ton_hr=0.0,
+                grits_entrained_gpm=grits_entrained_gpm,
+                intrusion_water_gpm=intrusion_water,
+                dilution_water_gpm=dilution_water,
+                underflow_solids_pct=wlc_underflow_solids,
+                mud_density=wlc_mud_density,
+                lime_mud_lb_hr=slaker_result.lime_mud_total_lb_hr,
+                causticity=causticity,
+            )
 
         # ─────────────────────────────────────────────────────────────────────
         # STAGE 2: Chemical Charge using CALCULATED EA from WLC (reflects CE!)
@@ -564,26 +649,37 @@ def _run_inner_loop(
         # ─────────────────────────────────────────────────────────────────────
         # WLC STAGE 2: Final WLC with NaSH + NaOH
         # ─────────────────────────────────────────────────────────────────────
-        wlc_result = calculate_wlc(
-            wl_flow_from_slaker_gpm=slaker_result.wl_flow_gpm,
-            wl_tta_mass_ton_hr=wl_tta_mass_from_slaker,
-            wl_na2s_mass_ton_hr=wl_na2s_mass_from_slaker,
-            wl_sulfidity=slaker_result.wl_sulfidity,
-            wl_tta_g_L=slaker_result.wl_tta_g_L,
-            nash_gpm=nash_gpm,
-            naoh_gpm=naoh_gpm,
-            tta_from_makeup_ton_hr=tta_from_nash + tta_from_naoh,
-            na2s_from_makeup_ton_hr=na2s_from_nash,
-            wl_naoh_mass_ton_hr=slaker_result.wl_naoh_mass_ton_hr,
-            naoh_from_makeup_ton_hr=tta_from_naoh,  # NaOH makeup as ton Na2O/hr
-            grits_entrained_gpm=grits_entrained_gpm,
-            intrusion_water_gpm=intrusion_water,
-            dilution_water_gpm=dilution_water,
-            underflow_solids_pct=wlc_underflow_solids,
-            mud_density=wlc_mud_density,
-            lime_mud_lb_hr=slaker_result.lime_mud_total_lb_hr,
-            causticity=causticity,
-        )
+        if makeup_after_wlc:
+            # Mansfield flow: mix NaSH + NaOH into clean WLC overflow
+            wlc_result = _mix_makeup_into_wlc_overflow(
+                wlc_clean,
+                nash_gpm=nash_gpm, naoh_gpm=naoh_gpm,
+                tta_from_nash_ton_hr=tta_from_nash,
+                tta_from_naoh_ton_hr=tta_from_naoh,
+                na2s_from_nash_ton_hr=na2s_from_nash,
+            )
+        else:
+            # Pine Hill flow: NaSH + NaOH enter WLC (original behavior)
+            wlc_result = calculate_wlc(
+                wl_flow_from_slaker_gpm=slaker_result.wl_flow_gpm,
+                wl_tta_mass_ton_hr=wl_tta_mass_from_slaker,
+                wl_na2s_mass_ton_hr=wl_na2s_mass_from_slaker,
+                wl_sulfidity=slaker_result.wl_sulfidity,
+                wl_tta_g_L=slaker_result.wl_tta_g_L,
+                nash_gpm=nash_gpm,
+                naoh_gpm=naoh_gpm,
+                tta_from_makeup_ton_hr=tta_from_nash + tta_from_naoh,
+                na2s_from_makeup_ton_hr=na2s_from_nash,
+                wl_naoh_mass_ton_hr=slaker_result.wl_naoh_mass_ton_hr,
+                naoh_from_makeup_ton_hr=tta_from_naoh,  # NaOH makeup as ton Na2O/hr
+                grits_entrained_gpm=grits_entrained_gpm,
+                intrusion_water_gpm=intrusion_water,
+                dilution_water_gpm=dilution_water,
+                underflow_solids_pct=wlc_underflow_solids,
+                mud_density=wlc_mud_density,
+                lime_mud_lb_hr=slaker_result.lime_mud_total_lb_hr,
+                causticity=causticity,
+            )
 
         # Build makeup summary for compatibility with rest of code
         makeup = calculate_makeup_summary(
@@ -712,7 +808,7 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
     shower_flow = inputs.get('shower_flow_gpm', DEFAULTS['shower_flow_gpm'])
     smelt_density = inputs.get('smelt_density_lb_ft3', DEFAULTS['smelt_density_lb_ft3'])
     gl_target_tta_lb_ft3 = inputs.get('gl_target_tta_lb_ft3', DEFAULTS['gl_target_tta_lb_ft3'])
-    gl_causticity = inputs.get('gl_causticity', DEFAULTS['gl_causticity'])
+    gl_causticity = inputs.get('gl_causticity', DEFAULTS.get('gl_causticity', 0.1016))
 
     # DT energy balance
     smelt_temp_f = inputs.get('smelt_temp_f', DEFAULTS['smelt_temp_f'])
@@ -791,6 +887,9 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
     naoh_conc = inputs.get('naoh_concentration', DEFAULTS['naoh_concentration'])
     nash_dens = inputs.get('nash_density', DEFAULTS['nash_density'])
     naoh_dens = inputs.get('naoh_density', DEFAULTS['naoh_density'])
+
+    # Process flow: makeup injection point
+    makeup_after_wlc = inputs.get('makeup_after_wlc', False)
 
     # Build unified loss table from inputs (26 keys: loss_{source}_{s|na})
     loss_kwargs = {}
@@ -904,7 +1003,7 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
         shower_flow = combined_dt['shower_flow_gpm']
         smelt_density = combined_dt['smelt_density_lb_ft3']
         # gl_target_tta_lb_ft3 and gl_causticity are system-wide params,
-        # already read from inputs at lines 714-715 with mill-specific values.
+        # already read from inputs with mill-specific values.
         # Do NOT overwrite with DEFAULTS (Pine Hill hardcoded values).
 
     # ── CTO S delta adjustment for initial BL composition ──
@@ -1080,6 +1179,7 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
             wlc_mud_density=wlc_mud_density,
             s_deficit_override=s_deficit_override,
             naoh_dry_override=naoh_dry_override,
+            makeup_after_wlc=makeup_after_wlc,
             # Dregs filter parameters for WW flow solve
             dregs_solids_lb_hr=dregs_solids_lb_hr,
             glc_underflow_solids_pct=glc_solids_pct,

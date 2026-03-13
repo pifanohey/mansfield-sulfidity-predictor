@@ -126,10 +126,10 @@ def calculate_dissolving_tank(
     shower_flow_gpm: float,         # I54 = 60
     smelt_density_lb_ft3: float,    # I56 = 100
     gl_target_tta_lb_ft3: float,    # I49 = 7.325
-    gl_causticity: float,           # I75 = 0.1016
+    gl_causticity: float = 0.1016,  # I75 — GL causticity = NaOH/(NaOH+Na2CO3)
     # From iteration (underflows + semichem GL)
-    underflow_dregs_gpm: float,     # 3_Chem!B69
-    semichem_gl_gpm: float,         # 3_Chem!G5
+    underflow_dregs_gpm: float = 0.0,     # 3_Chem!B69
+    semichem_gl_gpm: float = 0.0,         # 3_Chem!G5
     # Dregs filter filtrate return (to WW tank → DT)
     filtrate_return_gpm: float = 0.0,
     filtrate_tta_g_L: float = 0.0,
@@ -236,8 +236,10 @@ def calculate_dissolving_tank(
     # I68: GL Na2S (g/L) = GL TTA * GL sulfidity
     i68 = i67 * i65
 
-    # I69: GL AA (g/L) = GL TTA * GL causticity + GL Na2S
-    i69 = i67 * gl_causticity + i68
+    # I69: GL AA (g/L) = GL CE × (TTA - Na2S) + Na2S
+    # CE = NaOH / (NaOH + Na2CO3) applied to non-sulfide portion only
+    # (not to full TTA, which includes Na2S that is inert in causticizing)
+    i69 = gl_causticity * (i67 - i68) + i68
 
     return DissolvingTankResult(
         expansion_factor=b77,
@@ -279,10 +281,10 @@ def calculate_ww_flow_for_tta_target(
     shower_flow_gpm: float,         # I54 = 60
     smelt_density_lb_ft3: float,    # I56 = 100
     gl_target_tta_lb_ft3: float,    # I49 = 7.325 (SETPOINT)
-    gl_causticity: float,           # I75 = 0.1016
+    gl_causticity: float = 0.1016,  # I75 — GL causticity = NaOH/(NaOH+Na2CO3)
     # From iteration (underflows + semichem GL)
-    underflow_dregs_gpm: float,     # 3_Chem!B69
-    semichem_gl_gpm: float,         # 3_Chem!G5
+    underflow_dregs_gpm: float = 0.0,     # 3_Chem!B69
+    semichem_gl_gpm: float = 0.0,         # 3_Chem!G5
     # Optional: dregs filtrate return
     dregs_filtrate_gpm: float = 0.0,  # Filtrate flow returning to DT (gpm)
     filtrate_tta_g_L: float = 0.0,    # Filtrate TTA concentration (g/L)

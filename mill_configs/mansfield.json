@@ -106,6 +106,7 @@
     "target_sulfidity_pct": 25.8,
     "reduction_efficiency_pct": 83.7,
     "causticity_pct": 77.72,
+    "makeup_after_wlc": true,
 
     "nash_concentration": 0.40,
     "naoh_concentration": 0.50,

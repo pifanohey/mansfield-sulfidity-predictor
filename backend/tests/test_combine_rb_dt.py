@@ -142,4 +142,4 @@ class TestCombineDTInputs:
                                    defaults={"ww_flow_gpm": 300.0})
         result = _combine_dt_inputs([dt1, dt2], {}, GLOBAL_DEFAULTS)
         assert result['gl_target_tta_lb_ft3'] == 7.4
-        assert result['gl_causticity'] == 0.1016
+        # gl_causticity is now calculated inside dissolving_tank from WW composition

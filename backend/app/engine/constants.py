@@ -220,7 +220,7 @@ DEFAULTS = {
     'shower_flow_gpm': 60.0,         # I54
     'smelt_density_lb_ft3': 110.0,   # I56
     'gl_target_tta_lb_ft3': 7.4,     # I49 — GL TTA target in lb/ft3
-    'gl_causticity': 0.1016,         # I75 — GL causticity fraction
+    'gl_causticity': 0.1016,         # I75 — GL causticity fraction NaOH/(NaOH+Na2CO3)
 
     # ── DT energy balance ──
     'smelt_temp_f': 1338.0,            # Smelt temperature entering DT (°F)
