@@ -220,7 +220,7 @@ export default function ResultsPage() {
                 dregs_gpm={results.intermediate?.dregs_underflow_gpm}
                 grits_gpm={results.intermediate?.grits_entrained_gpm}
                 smelt_flow_gpm={results.intermediate?.smelt_flow_gpm}
-                ww_flow_gpm={inputs.ww_flow_gpm}
+                ww_flow_gpm={results.ww_flow_solved_gpm ?? inputs.ww_flow_gpm}
                 shower_flow_gpm={inputs.shower_flow_gpm}
               />
             </TabsContent>
