@@ -165,12 +165,17 @@ def _mix_makeup_into_wlc_overflow(
     nash_gpm, naoh_gpm,
     tta_from_nash_ton_hr, tta_from_naoh_ton_hr,
     na2s_from_nash_ton_hr,
+    intrusion_water_gpm: float = 0.0,
+    dilution_water_gpm: float = 0.0,
 ):
-    """Mix makeup chemicals into WLC overflow (post-WLC injection).
+    """Mix makeup chemicals + water into WLC overflow (post-WLC injection).
 
-    Used for Mansfield-style process flow where NaSH/NaOH are added AFTER
-    the WL clarifier overflow, not before. The WLC only sees slaker output;
-    makeup bypasses the clarifier entirely.
+    Used for Mansfield-style process flow where NaSH/NaOH, intrusion water,
+    and dilution water are added AFTER the WL clarifier overflow.
+    The WLC only sees slaker output; everything else bypasses the clarifier.
+
+    Process order (per WinGEMS):
+      WLC overflow → + intrusion water → + NaSH/NaOH → + dilution water
 
     Returns a WLCResult with the mixed composition.
     """
@@ -180,8 +185,9 @@ def _mix_makeup_into_wlc_overflow(
     wlc_naoh_gL = wlc_clean.final_aa_g_L - wlc_clean.final_na2s_g_L
     wlc_naoh_mass = wlc_naoh_gL * wlc_clean.wl_overflow_gpm * conv_out
 
-    # Mixed flow and masses
-    flow = wlc_clean.wl_overflow_gpm + nash_gpm + naoh_gpm
+    # Mixed flow: WLC overflow + intrusion + makeup + dilution
+    flow = (wlc_clean.wl_overflow_gpm + intrusion_water_gpm
+            + nash_gpm + naoh_gpm + dilution_water_gpm)
     tta_mass = wlc_clean.final_tta_mass_ton_hr + tta_from_nash_ton_hr + tta_from_naoh_ton_hr
     na2s_mass = wlc_clean.final_na2s_mass_ton_hr + na2s_from_nash_ton_hr
     naoh_mass = wlc_naoh_mass + tta_from_naoh_ton_hr
@@ -458,7 +464,8 @@ def _run_inner_loop(
         # WLC STAGE 1: NaSH only → get final_ea_g_L reflecting CE
         # ─────────────────────────────────────────────────────────────────────
         if makeup_after_wlc:
-            # Mansfield flow: WLC sees only slaker output (no makeup)
+            # Mansfield flow: WLC sees only slaker output (no makeup, no water additions)
+            # Intrusion + dilution water go AFTER the WLC split (per WinGEMS)
             wlc_clean = calculate_wlc(
                 wl_flow_from_slaker_gpm=slaker_result.wl_flow_gpm,
                 wl_tta_mass_ton_hr=wl_tta_mass_from_slaker,
@@ -472,20 +479,22 @@ def _run_inner_loop(
                 wl_naoh_mass_ton_hr=slaker_result.wl_naoh_mass_ton_hr,
                 naoh_from_makeup_ton_hr=0.0,
                 grits_entrained_gpm=grits_entrained_gpm,
-                intrusion_water_gpm=intrusion_water,
-                dilution_water_gpm=dilution_water,
+                intrusion_water_gpm=0.0,
+                dilution_water_gpm=0.0,
                 underflow_solids_pct=wlc_underflow_solids,
                 mud_density=wlc_mud_density,
                 lime_mud_lb_hr=slaker_result.lime_mud_total_lb_hr,
                 causticity=causticity,
             )
-            # Mix NaSH into WLC overflow for EA demand calculation
+            # Mix NaSH + intrusion + dilution into WLC overflow
             wlc_stage1 = _mix_makeup_into_wlc_overflow(
                 wlc_clean,
                 nash_gpm=nash_gpm, naoh_gpm=0.0,
                 tta_from_nash_ton_hr=tta_from_nash,
                 tta_from_naoh_ton_hr=0.0,
                 na2s_from_nash_ton_hr=na2s_from_nash,
+                intrusion_water_gpm=intrusion_water,
+                dilution_water_gpm=dilution_water,
             )
         else:
             # Pine Hill flow: NaSH enters WLC (original behavior)
@@ -717,13 +726,15 @@ def _run_inner_loop(
         # WLC STAGE 2: Final WLC with NaSH + NaOH
         # ─────────────────────────────────────────────────────────────────────
         if makeup_after_wlc:
-            # Mansfield flow: mix NaSH + NaOH into clean WLC overflow
+            # Mansfield flow: mix NaSH + NaOH + water into clean WLC overflow
             wlc_result = _mix_makeup_into_wlc_overflow(
                 wlc_clean,
                 nash_gpm=nash_gpm, naoh_gpm=naoh_gpm,
                 tta_from_nash_ton_hr=tta_from_nash,
                 tta_from_naoh_ton_hr=tta_from_naoh,
                 na2s_from_nash_ton_hr=na2s_from_nash,
+                intrusion_water_gpm=intrusion_water,
+                dilution_water_gpm=dilution_water,
             )
         else:
             # Pine Hill flow: NaSH + NaOH enter WLC (original behavior)
