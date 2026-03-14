@@ -372,6 +372,7 @@ async def get_config():
     return {
         "mill_name": config.mill_name,
         "makeup_chemical": config.makeup_chemical,
+        "liquor_unit": config.liquor_unit,
         "fiberlines": [
             {
                 "id": fl.id,

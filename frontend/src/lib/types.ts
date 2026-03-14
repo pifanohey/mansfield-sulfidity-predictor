@@ -407,6 +407,7 @@ export interface DissolvingTankConfig {
 export interface MillConfig {
   mill_name: string;
   makeup_chemical: "nash" | "saltcake" | "emulsified_sulfur" | "naoh";
+  liquor_unit?: "lb_per_ft3" | "lb_per_gal";
   fiberlines: FiberlineConfig[];
   recovery_boilers: RecoveryBoilerConfig[];
   dissolving_tanks: DissolvingTankConfig[];

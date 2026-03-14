@@ -1,6 +1,7 @@
 {
   "mill_name": "Mansfield",
   "makeup_chemical": "nash",
+  "liquor_unit": "lb_per_gal",
   "fiberlines": [
     {
       "id": "kraft_pine1",

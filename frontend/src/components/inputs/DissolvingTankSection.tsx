@@ -3,6 +3,8 @@
 import InputField from "./InputField";
 import type { DissolvingTankConfig } from "@/lib/types";
 import type { DTInputState } from "@/hooks/useAppState";
+import { useAppState } from "@/hooks/useAppState";
+import { getLiquorUnitLabel, toDisplay, fromDisplay, type LiquorUnit } from "@/lib/units";
 
 interface Props {
   wwFlow: number;
@@ -18,20 +20,6 @@ interface Props {
   onDTFieldChange?: (dtId: string, key: string, value: number) => void;
 }
 
-const DT_FIELDS: Array<{
-  key: keyof DTInputState;
-  label: string;
-  unit: string;
-  excelRef: string;
-  step: number;
-}> = [
-  { key: "ww_flow_gpm", label: "WW Flow", unit: "gpm", excelRef: "2_RB!I53", step: 1 },
-  { key: "ww_tta_lb_ft3", label: "WW TTA", unit: "lb/ft³", excelRef: "2_RB!I50", step: 0.001 },
-  { key: "ww_sulfidity", label: "WW Sulfidity", unit: "frac", excelRef: "2_RB!I48", step: 0.001 },
-  { key: "shower_flow_gpm", label: "Shower Flow", unit: "gpm", excelRef: "2_RB!I54", step: 1 },
-  { key: "smelt_density_lb_ft3", label: "Smelt Density", unit: "lb/ft³", excelRef: "2_RB!I56", step: 1 },
-];
-
 export default function DissolvingTankSection({
   wwFlow,
   wwTtaLbFt3,
@@ -45,6 +33,9 @@ export default function DissolvingTankSection({
   dtInputs,
   onDTFieldChange,
 }: Props) {
+  const { millConfig } = useAppState();
+  const unit = (millConfig?.liquor_unit ?? "lb_per_ft3") as LiquorUnit;
+  const concLabel = getLiquorUnitLabel(unit);
   const isMultiDT = dtConfigs && dtConfigs.length > 1;
 
   return (
@@ -53,9 +44,9 @@ export default function DissolvingTankSection({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <InputField
           label="GL TTA Target"
-          value={glTargetTtaLbFt3}
-          onChange={(v) => onChange("gl_target_tta_lb_ft3", v)}
-          unit="lb/ft³"
+          value={toDisplay(glTargetTtaLbFt3, unit)}
+          onChange={(v) => onChange("gl_target_tta_lb_ft3", fromDisplay(v, unit))}
+          unit={concLabel}
           excelRef="2_RB!I49"
           step={0.001}
         />
@@ -82,9 +73,9 @@ export default function DissolvingTankSection({
           />
           <InputField
             label="WW TTA"
-            value={wwTtaLbFt3}
-            onChange={(v) => onChange("ww_tta_lb_ft3", v)}
-            unit="lb/ft³"
+            value={toDisplay(wwTtaLbFt3, unit)}
+            onChange={(v) => onChange("ww_tta_lb_ft3", fromDisplay(v, unit))}
+            unit={concLabel}
             excelRef="2_RB!I50"
             step={0.001}
           />
@@ -133,17 +124,51 @@ export default function DissolvingTankSection({
                   <span className="ml-2 text-[10px] text-muted-foreground">({dtc.id})</span>
                 </h4>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {DT_FIELDS.map((f) => (
-                    <InputField
-                      key={`${dtc.id}-${f.key}`}
-                      label={f.label}
-                      value={values[f.key]}
-                      onChange={(v) => onDTFieldChange?.(dtc.id, f.key, v)}
-                      unit={f.unit}
-                      excelRef={f.excelRef}
-                      step={f.step}
-                    />
-                  ))}
+                  <InputField
+                    key={`${dtc.id}-ww_flow_gpm`}
+                    label="WW Flow"
+                    value={values.ww_flow_gpm}
+                    onChange={(v) => onDTFieldChange?.(dtc.id, "ww_flow_gpm", v)}
+                    unit="gpm"
+                    excelRef="2_RB!I53"
+                    step={1}
+                  />
+                  <InputField
+                    key={`${dtc.id}-ww_tta_lb_ft3`}
+                    label="WW TTA"
+                    value={toDisplay(values.ww_tta_lb_ft3, unit)}
+                    onChange={(v) => onDTFieldChange?.(dtc.id, "ww_tta_lb_ft3", fromDisplay(v, unit))}
+                    unit={concLabel}
+                    excelRef="2_RB!I50"
+                    step={0.001}
+                  />
+                  <InputField
+                    key={`${dtc.id}-ww_sulfidity`}
+                    label="WW Sulfidity"
+                    value={values.ww_sulfidity}
+                    onChange={(v) => onDTFieldChange?.(dtc.id, "ww_sulfidity", v)}
+                    unit="frac"
+                    excelRef="2_RB!I48"
+                    step={0.001}
+                  />
+                  <InputField
+                    key={`${dtc.id}-shower_flow_gpm`}
+                    label="Shower Flow"
+                    value={values.shower_flow_gpm}
+                    onChange={(v) => onDTFieldChange?.(dtc.id, "shower_flow_gpm", v)}
+                    unit="gpm"
+                    excelRef="2_RB!I54"
+                    step={1}
+                  />
+                  <InputField
+                    key={`${dtc.id}-smelt_density_lb_ft3`}
+                    label="Smelt Density"
+                    value={values.smelt_density_lb_ft3}
+                    onChange={(v) => onDTFieldChange?.(dtc.id, "smelt_density_lb_ft3", v)}
+                    unit="lb/ft³"
+                    excelRef="2_RB!I56"
+                    step={1}
+                  />
                 </div>
               </div>
             );

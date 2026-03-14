@@ -65,6 +65,7 @@ class MillConfig:
     defaults: Dict[str, Any] = field(default_factory=dict)
     recovery_boilers: List[RecoveryBoilerConfig] = field(default_factory=list)
     dissolving_tanks: List[DissolvingTankConfig] = field(default_factory=list)
+    liquor_unit: str = "lb_per_ft3"  # "lb_per_ft3" or "lb_per_gal"
 
 
 def _find_config_dir() -> Path:
@@ -133,6 +134,7 @@ def load_mill_config(mill_id: str) -> MillConfig:
         defaults=data.get("defaults", {}),
         recovery_boilers=recovery_boilers,
         dissolving_tanks=dissolving_tanks,
+        liquor_unit=data.get("liquor_unit", "lb_per_ft3"),
     )
 
 

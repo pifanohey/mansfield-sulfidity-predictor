@@ -3,6 +3,8 @@
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { fmtNum } from "@/lib/format";
 import type { CalculationResponse } from "@/lib/types";
+import { useAppState } from "@/hooks/useAppState";
+import { getLiquorUnitLabel, gLToDisplay, type LiquorUnit } from "@/lib/units";
 
 interface Props {
   results: CalculationResponse;
@@ -93,6 +95,12 @@ export default function RecaustFlowDiagram({
   results, ctoSLbHr, blSPctLab, blSPctUsed,
   wwFlowGpm, showerFlowGpm,
 }: Props) {
+  const { millConfig } = useAppState();
+  const lUnit = (millConfig?.liquor_unit ?? "lb_per_ft3") as LiquorUnit;
+  const lLabel = getLiquorUnitLabel(lUnit);
+  /** Format a g/L concentration in the mill's display unit. */
+  const fc = (gL: number, decimals = 1) => `${fmtNum(gLToDisplay(gL, lUnit), decimals + 1)} ${lLabel}`;
+
   const im = results.intermediate;
   const mk = results.makeup;
   const sf = results.sulfidity;
@@ -231,7 +239,7 @@ export default function RecaustFlowDiagram({
                 <Row label="Total In:" value={`${f1(totalIn)} gpm`} />
                 <Row label="Steam:" value={`-${f1(steamGpm)} gpm (${f1(steamLbHr)} lb/hr)`} color="text-red-400" />
                 <Row label="GL Out:" value={`${f1(dtGlOut)} GPM`} color="text-cyan" />
-                <Row label="TTA:" value={`${f1(glTTA)} g/L`} color="text-emerald-400" />
+                <Row label="TTA:" value={fc(glTTA)} color="text-emerald-400" />
                 <Row label="Sulfidity:" value={`${f1(glSulfPct)}%`} color="text-pink-400" />
               </FlowCard>
             </div>
@@ -242,8 +250,8 @@ export default function RecaustFlowDiagram({
             <div>
               <FlowCard title="Green Liquor Clarifier" accent="pink">
                 <Row label="In:" value={`${f1(dtGlOut)} gpm`} />
-                <Row label="TTA:" value={`${f1(glTTA)} g/L`} color="text-emerald-400" />
-                <Row label="Na\u2082S:" value={`${f1(glNa2S)} g/L`} />
+                <Row label="TTA:" value={fc(glTTA)} color="text-emerald-400" />
+                <Row label="Na\u2082S:" value={fc(glNa2S)} />
                 <Row label="Sulfidity:" value={`${f1(glSulfPct)}%`} color="text-pink-400" />
               </FlowCard>
               <div className="text-center mt-1.5 leading-tight font-mono">
@@ -264,9 +272,9 @@ export default function RecaustFlowDiagram({
                 <Row label="GL In:" value={`${f1(glToSlaker)} gpm`} />
                 <Row label="Yield:" value={fmtNum(yieldFactor, 3)} color="text-amber-400" />
                 <Row label="WL Out:" value={`${f1(wlFromSlaker)} gpm`} />
-                <Row label="TTA:" value={`${f1(wlTTAslaker)} g/L`} color="text-emerald-400" />
-                <Row label="NaOH:" value={`${f1(wlNaOHslaker)} g/L`} />
-                <Row label="Na\u2082S:" value={`${f1(wlNa2Sslaker)} g/L`} />
+                <Row label="TTA:" value={fc(wlTTAslaker)} color="text-emerald-400" />
+                <Row label="NaOH:" value={fc(wlNaOHslaker)} />
+                <Row label="Na\u2082S:" value={fc(wlNa2Sslaker)} />
               </FlowCard>
             </div>
           </div>
@@ -291,7 +299,7 @@ export default function RecaustFlowDiagram({
                     <Row label="-Mud UF:" value={`-${f1(mudUF)} gpm`} color="text-red-400" />
                     <div className="border-t border-white/[0.06] mt-1 pt-1">
                       <Row label="Overflow:" value={`${f1(wlcCleanOverflow)} GPM`} color="text-cyan" />
-                      <Row label="TTA:" value={`${f1(wlcCleanTTA)} g/L`} color="text-emerald-400" />
+                      <Row label="TTA:" value={fc(wlcCleanTTA)} color="text-emerald-400" />
                       <Row label="Sulfidity:" value={`${f2(wlcCleanSulf)}%`} color="text-pink-400" />
                     </div>
                   </FlowCard>
@@ -315,11 +323,11 @@ export default function RecaustFlowDiagram({
 
                 <div>
                   <FlowCard title="Final WL to Digesters" accent="green">
-                    <Row label="EA:" value={`${f2(finalEA)} g/L`} color="text-cyan" />
-                    <Row label="TTA:" value={`${f1(finalTTA)} g/L`} color="text-emerald-400" />
-                    <Row label="AA:" value={`${f1(finalAA)} g/L`} />
-                    <Row label="NaOH:" value={`${f1(finalNaOH)} g/L`} />
-                    <Row label="Na\u2082CO\u2083:" value={`${f1(finalNa2CO3)} g/L`} />
+                    <Row label="EA:" value={fc(finalEA, 2)} color="text-cyan" />
+                    <Row label="TTA:" value={fc(finalTTA)} color="text-emerald-400" />
+                    <Row label="AA:" value={fc(finalAA)} />
+                    <Row label="NaOH:" value={fc(finalNaOH)} />
+                    <Row label="Na\u2082CO\u2083:" value={fc(finalNa2CO3)} />
                     <Row label="Sulfidity:" value={`${f2(finalSulf)}%`} color="text-pink-400" />
                   </FlowCard>
                 </div>
@@ -344,11 +352,11 @@ export default function RecaustFlowDiagram({
 
                 <div>
                   <FlowCard title="Final WL to Digesters" accent="green">
-                    <Row label="EA:" value={`${f2(finalEA)} g/L`} color="text-cyan" />
-                    <Row label="TTA:" value={`${f1(finalTTA)} g/L`} color="text-emerald-400" />
-                    <Row label="AA:" value={`${f1(finalAA)} g/L`} />
-                    <Row label="NaOH:" value={`${f1(finalNaOH)} g/L`} />
-                    <Row label="Na\u2082CO\u2083:" value={`${f1(finalNa2CO3)} g/L`} />
+                    <Row label="EA:" value={fc(finalEA, 2)} color="text-cyan" />
+                    <Row label="TTA:" value={fc(finalTTA)} color="text-emerald-400" />
+                    <Row label="AA:" value={fc(finalAA)} />
+                    <Row label="NaOH:" value={fc(finalNaOH)} />
+                    <Row label="Na\u2082CO\u2083:" value={fc(finalNa2CO3)} />
                     <Row label="Sulfidity:" value={`${f2(finalSulf)}%`} color="text-pink-400" />
                   </FlowCard>
                 </div>
