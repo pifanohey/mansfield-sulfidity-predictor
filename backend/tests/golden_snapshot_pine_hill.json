@@ -1,14 +1,14 @@
 {
-  "final_sulfidity_pct": 29.399999999999988,
-  "nash_dry_lbs_hr": 947.069541630854,
-  "naoh_dry_lbs_hr": 2413.3320306513,
-  "smelt_sulfidity_pct": 29.023545555708786,
-  "total_wl_demand_gpm": 581.6438837093654,
-  "final_wl_tta_g_L": 116.76564927554637,
-  "final_wl_na2s_g_L": 34.32910088701062,
-  "final_wl_naoh_g_L": 68.99073813298065,
-  "bl_na_pct_used": 19.043122854354174,
-  "bl_s_pct_used": 4.085388414775225,
-  "pine_wl_demand_gpm": 517.667936585528,
-  "semichem_wl_demand_gpm": 63.975947123837436
+  "final_sulfidity_pct": 29.400000000000006,
+  "nash_dry_lbs_hr": 947.2746836606052,
+  "naoh_dry_lbs_hr": 2413.1856574584704,
+  "smelt_sulfidity_pct": 29.02355453196194,
+  "total_wl_demand_gpm": 582.1088119774777,
+  "final_wl_tta_g_L": 116.67263333734131,
+  "final_wl_na2s_g_L": 34.30175420117835,
+  "final_wl_naoh_g_L": 68.93559572679277,
+  "bl_na_pct_used": 19.043157358358485,
+  "bl_s_pct_used": 4.085397072335045,
+  "pine_wl_demand_gpm": 518.0817266449696,
+  "semichem_wl_demand_gpm": 64.02708533250808
 }

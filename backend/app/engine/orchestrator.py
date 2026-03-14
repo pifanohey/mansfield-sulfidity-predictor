@@ -314,8 +314,8 @@ def _run_inner_loop(
             filtrate_return_gpm = dregs_filtrate_gpm * (1 - dregs_filtrate_sewer_pct)
             filtrate_tta_g_L = df_result.filtrate_tta_g_L
 
-        # Solve WW flow analytically to hit GL TTA setpoint (mass balance closure)
-        ww_flow_solved, dt_result = calculate_ww_flow_for_tta_target(
+        # Solve WW flow analytically (reference only — backup if flow meter lost)
+        ww_flow_solved, _ = calculate_ww_flow_for_tta_target(
             smelt_tta_lbs_hr=smelt.tta_lbs_hr,
             smelt_active_sulfide=smelt.active_sulfide,
             smelt_dead_load=smelt.dead_load,
@@ -330,6 +330,33 @@ def _run_inner_loop(
             semichem_gl_gpm=total_gl_to_digesters,
             dregs_filtrate_gpm=filtrate_return_gpm,
             filtrate_tta_g_L=filtrate_tta_g_L,
+            smelt_temp_f=smelt_temp_f,
+            ww_temp_f=ww_temp_f,
+            shower_temp_f=shower_temp_f,
+            dt_temp_f=dt_operating_temp_f,
+            smelt_cp=smelt_cp,
+            latent_heat=latent_heat,
+        )
+
+        # Use USER INPUT WW flow for DT calculation (DCS measurement)
+        # GL TTA will be whatever mass balance gives (not forced to setpoint)
+        dt_result = calculate_dissolving_tank(
+            smelt_tta_lbs_hr=smelt.tta_lbs_hr,
+            smelt_active_sulfide=smelt.active_sulfide,
+            smelt_dead_load=smelt.dead_load,
+            smelt_sulfidity_pct=smelt.smelt_sulfidity_pct,
+            ww_flow_gpm=ww_flow,
+            ww_tta_lb_ft3=ww_tta_lb_ft3,
+            ww_sulfidity=ww_sulfidity,
+            shower_flow_gpm=shower_flow,
+            smelt_density_lb_ft3=smelt_density,
+            gl_target_tta_lb_ft3=gl_target_tta_lb_ft3,
+            gl_causticity=gl_causticity,
+            underflow_dregs_gpm=dregs_gpm,
+            semichem_gl_gpm=total_gl_to_digesters,
+            filtrate_return_gpm=filtrate_return_gpm,
+            filtrate_tta_g_L=filtrate_tta_g_L,
+            filtrate_sulfidity=ww_sulfidity,
             smelt_temp_f=smelt_temp_f,
             ww_temp_f=ww_temp_f,
             shower_temp_f=shower_temp_f,
