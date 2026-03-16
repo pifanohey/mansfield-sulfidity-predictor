@@ -238,24 +238,31 @@ def calculate_slaker_model(
     # B74: Total slurry mass = GL mass + lime - steam - grits_loss
     wl_mass = gl_mass_ton_hr + total_lime - steam_ton_hr - slaker_grits
 
-    # B77: WL LIQUID volume — subtract lime mud solids from slurry mass.
-    # The slurry contains dissolved WL (liquid) + suspended lime mud (solid).
+    # WL slurry volume (liquid + suspended lime mud) — this is the physical
+    # flow from the slaker to the WLC. The WLC settles the mud.
+    wl_slurry_volume_L_hr = wl_mass * KG_PER_TON / WL_DENSITY
+
+    # WL LIQUID volume — subtract lime mud solids from slurry mass.
     # TTA species are dissolved in the liquid phase only, so concentrations
     # must be based on liquid volume, not total slurry volume.
     wl_liquid_mass = wl_mass - lime_mud_total
-    wl_volume_L_hr = wl_liquid_mass * KG_PER_TON / WL_DENSITY
+    wl_liquid_volume_L_hr = wl_liquid_mass * KG_PER_TON / WL_DENSITY
 
-    # B81: Yield factor = WL liquid volume / GL volume
+    # B81: Yield factor = WL liquid volume / GL volume (concentration factor)
     if gl_volume_L_hr > 0:
-        yield_factor = wl_volume_L_hr / gl_volume_L_hr
+        yield_factor = wl_liquid_volume_L_hr / gl_volume_L_hr
     else:
         yield_factor = 1.0
 
     # Clamp to reasonable range
     yield_factor = max(0.85, min(1.05, yield_factor))
 
-    # B87: WL Flow (gpm) — liquid phase only
-    wl_flow_gpm = wl_volume_L_hr / (60 * 3.785)
+    # B87: WL Flow (gpm) — SLURRY flow (physical stream to WLC)
+    # The WLC receives the full slurry and removes mud in the underflow.
+    wl_flow_gpm = wl_slurry_volume_L_hr / (60 * 3.785)
+
+    # Liquid flow for concentration calculations only
+    wl_liquid_flow_gpm = wl_liquid_volume_L_hr / (60 * 3.785)
 
     # ══════════════════════════════════════════════════════════════════════
     # STRICT MASS BALANCE: WL COMPOSITION
@@ -291,13 +298,14 @@ def calculate_slaker_model(
     # TTA: Total = Na₂S + NaOH + Na₂CO₃ (all Na₂O basis)
     wl_tta_mass = wl_na2s_mass + wl_naoh_mass + wl_na2co3_mass
 
-    # ── Step 4: Derive Concentrations from Mass/Volume ──
-    # C = Mass / (Flow × conversion)
-    if wl_flow_gpm > 0:
-        wl_tta = wl_tta_mass / (wl_flow_gpm * conv)
-        wl_na2s = wl_na2s_mass / (wl_flow_gpm * conv)
-        wl_naoh = wl_naoh_mass / (wl_flow_gpm * conv)
-        wl_na2co3 = wl_na2co3_mass / (wl_flow_gpm * conv)
+    # ── Step 4: Derive Concentrations from Mass / LIQUID Volume ──
+    # Use liquid flow (excludes lime mud) for concentration calculations.
+    # The slurry flow (wl_flow_gpm) is used for physical flow to WLC.
+    if wl_liquid_flow_gpm > 0:
+        wl_tta = wl_tta_mass / (wl_liquid_flow_gpm * conv)
+        wl_na2s = wl_na2s_mass / (wl_liquid_flow_gpm * conv)
+        wl_naoh = wl_naoh_mass / (wl_liquid_flow_gpm * conv)
+        wl_na2co3 = wl_na2co3_mass / (wl_liquid_flow_gpm * conv)
     else:
         wl_tta = gl_tta_g_L
         wl_na2s = gl_na2s_g_L

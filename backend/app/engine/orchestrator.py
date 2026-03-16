@@ -417,10 +417,11 @@ def _run_inner_loop(
             slaker_temp_f=slaker_temp,
         )
 
-        # Calculate WL mass flows from slaker (needed for NaSH sizing)
-        conv_factor = CONV['GPM_GL_TO_LB_HR'] / 2000  # gpm × g/L → ton/hr
-        wl_tta_mass_from_slaker = slaker_result.wl_flow_gpm * slaker_result.wl_tta_g_L * conv_factor
-        wl_na2s_mass_from_slaker = slaker_result.wl_flow_gpm * slaker_result.wl_na2s_g_L * conv_factor
+        # WL mass flows from slaker — use mass outputs directly from slaker model.
+        # Do NOT recompute as flow × concentration because wl_flow_gpm is now the
+        # slurry flow while concentrations are on a liquor basis.
+        wl_tta_mass_from_slaker = slaker_result.wl_tta_mass_ton_hr
+        wl_na2s_mass_from_slaker = slaker_result.wl_na2s_mass_ton_hr
 
         # ─────────────────────────────────────────────────────────────────────
         # STAGE 1: NaSH CALCULATION
