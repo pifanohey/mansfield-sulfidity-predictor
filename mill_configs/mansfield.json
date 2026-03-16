@@ -102,7 +102,152 @@
       }
     }
   ],
-  "tanks": [],
+  "tanks": [
+    {
+      "id": "wlc_1",
+      "name": "#1 White Liquor Clarifier",
+      "constant": 446796,
+      "max_level": 18,
+      "gal_per_ft": 24822.0,
+      "group": "white_liquor"
+    },
+    {
+      "id": "wlc_2",
+      "name": "#2 White Liquor Clarifier",
+      "constant": 446796,
+      "max_level": 18,
+      "gal_per_ft": 24822.0,
+      "group": "white_liquor"
+    },
+    {
+      "id": "wl_storage_1",
+      "name": "#1 White Liquor Storage",
+      "constant": 431820,
+      "max_level": 15,
+      "gal_per_ft": 28788.0,
+      "group": "white_liquor"
+    },
+    {
+      "id": "wl_storage_2",
+      "name": "#2 White Liquor Storage",
+      "constant": 431820,
+      "max_level": 15,
+      "gal_per_ft": 28788.0,
+      "group": "white_liquor"
+    },
+    {
+      "id": "wl_storage_3",
+      "name": "#3 White Liquor Storage",
+      "constant": 431820,
+      "max_level": 15,
+      "gal_per_ft": 28788.0,
+      "group": "white_liquor"
+    },
+    {
+      "id": "glc_1",
+      "name": "#1 Green Liquor Clarifier",
+      "constant": 426672,
+      "max_level": 24,
+      "gal_per_ft": 17778.0,
+      "group": "green_liquor"
+    },
+    {
+      "id": "glc_2",
+      "name": "#2 Green Liquor Clarifier",
+      "constant": 426672,
+      "max_level": 24,
+      "gal_per_ft": 17778.0,
+      "group": "green_liquor"
+    },
+    {
+      "id": "gl_storage_1",
+      "name": "#1 Green Liquor Storage",
+      "constant": 507600,
+      "max_level": 24,
+      "gal_per_ft": 21150.0,
+      "group": "green_liquor"
+    },
+    {
+      "id": "gl_storage_2",
+      "name": "#2 Green Liquor Storage",
+      "constant": 507600,
+      "max_level": 24,
+      "gal_per_ft": 21150.0,
+      "group": "green_liquor"
+    },
+    {
+      "id": "rb1_dump_tank",
+      "name": "RB1 Dump Tank",
+      "constant": 7403,
+      "max_level": 8.75,
+      "gal_per_ft": 846.0,
+      "group": "green_liquor"
+    },
+    {
+      "id": "rb2_dump_tank",
+      "name": "RB2 Dump Tank",
+      "constant": 7403,
+      "max_level": 8.75,
+      "gal_per_ft": 846.0,
+      "group": "green_liquor"
+    },
+    {
+      "id": "wbl_east_sw",
+      "name": "East Softwood WBL Tank",
+      "constant": 634500,
+      "max_level": 30,
+      "gal_per_ft": 21150.0,
+      "group": "weak_black_liquor"
+    },
+    {
+      "id": "wbl_west_sw",
+      "name": "West Softwood WBL Tank",
+      "constant": 634500,
+      "max_level": 30,
+      "gal_per_ft": 21150.0,
+      "group": "weak_black_liquor"
+    },
+    {
+      "id": "wbl_hw",
+      "name": "Hardwood WBL Tank",
+      "constant": 440610,
+      "max_level": 30,
+      "gal_per_ft": 14687.0,
+      "group": "weak_black_liquor"
+    },
+    {
+      "id": "sbl_semichem",
+      "name": "Semichem WBL Tank",
+      "constant": 440610,
+      "max_level": 30,
+      "gal_per_ft": 14687.0,
+      "group": "strong_black_liquor"
+    },
+    {
+      "id": "sbl_semichem_inter",
+      "name": "Semichem Intermediate Tank (50%)",
+      "constant": 380672,
+      "max_level": 32,
+      "gal_per_ft": 11896.0,
+      "group": "strong_black_liquor"
+    },
+    {
+      "id": "sbl_sw_inter",
+      "name": "Softwood Intermediate Tank (50%)",
+      "constant": 634500,
+      "max_level": 30,
+      "gal_per_ft": 21150.0,
+      "group": "strong_black_liquor"
+    },
+    {
+      "id": "sbl_concentrated",
+      "name": "Concentrated Liquor Tank",
+      "constant": 367164,
+      "max_level": 62,
+      "gal_per_ft": 5922.0,
+      "group": "strong_black_liquor"
+    }
+  ],
   "defaults": {
     "target_sulfidity_pct": 25.8,
     "reduction_efficiency_pct": 83.7,
