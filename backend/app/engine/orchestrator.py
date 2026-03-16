@@ -1615,7 +1615,9 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
 
     # Chemical charge
     if chem_result:
-        results['wl_flow_from_slaker'] = chem_result.wl_flow_from_slaker_gpm
+        # Use slaker's actual slurry flow (physical stream to WLC), not the
+        # liquid-basis flow from chem_result (which uses yield_factor < 1).
+        results['wl_flow_from_slaker'] = slaker_result.wl_flow_gpm
         results['wl_tta_mass_ton_hr'] = chem_result.wl_tta_mass_ton_hr
         results['wl_na2s_mass_ton_hr'] = chem_result.wl_na2s_mass_ton_hr
         results['initial_sulfidity_pct'] = chem_result.initial_sulfidity_pct

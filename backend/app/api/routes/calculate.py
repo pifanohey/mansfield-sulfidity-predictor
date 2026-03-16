@@ -126,7 +126,7 @@ def _build_response(results: Dict[str, Any], inputs: Dict[str, Any]) -> Calculat
             na2s_lb_ft3=final_na2s_gL / LB_FT3_TO_GL if LB_FT3_TO_GL > 0 else 0,
             sulfidity_pct=results.get('final_sulfidity_pct', 0),
             causticity_pct=inputs.get('causticity_pct', 81.0),
-            wl_flow_gpm=results.get('wlc_overflow_gpm', results.get('wl_flow_from_slaker', 0)),
+            wl_flow_gpm=results.get('wl_flow_from_slaker', 0),
             wl_demand_gpm=results.get('total_wl_demand_gpm', 0),
         ),
         forward_leg=ForwardLegOutput(
