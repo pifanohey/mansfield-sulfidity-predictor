@@ -1140,6 +1140,9 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
             rb_ash = rb_d.get('ash_recycled_pct', ash_recycled_pct)
             rb_saltcake = rb_d.get('saltcake_flow_lb_hr', saltcake_flow / len(rb_configs))
 
+            # Check if NORAM handles ash return externally (enriched composition)
+            noram_enabled = inputs.get('esp_ash_na_pct_ds', 0) > 0 and inputs.get('noram_recovery_pct', 0) > 0
+
             # User-level flat overrides take precedence over config defaults
             # (e.g., user passes reduction_eff_pct=90 — applies to all RBs)
             if 'reduction_eff_pct' in inputs:
@@ -1167,6 +1170,9 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
                 total_production_bdt_day=rb_prod,
                 saltcake_flow_lb_hr=rb_saltcake,
                 bl_density_offset=bl_density_offset,
+                noram_external=noram_enabled,
+                esp_ash_na_pct_ds=inputs.get('esp_ash_na_pct_ds', 0.0),
+                esp_ash_s_pct_ds=inputs.get('esp_ash_s_pct_ds', 0.0),
             )
             per_rb_inputs_list.append(rb_inp)
             per_rb_smelt_list.append(rb_sme)
@@ -1222,6 +1228,9 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
                     total_production_bdt_day=rb_prod,
                     saltcake_flow_lb_hr=rb_saltcake,
                     bl_density_offset=bl_density_offset,
+                    noram_external=noram_enabled,
+                esp_ash_na_pct_ds=inputs.get('esp_ash_na_pct_ds', 0.0),
+                esp_ash_s_pct_ds=inputs.get('esp_ash_s_pct_ds', 0.0),
                 )
                 per_rb_inputs_list.append(rb_inp)
                 per_rb_smelt_list.append(rb_sme)
@@ -1413,12 +1422,44 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
         else:
             dead_load_s_lb_hr = 0.0
 
+        # ── NORAM recovered ESP ash return to WBL ──
+        # ESP ash captured by the RB is recovered by the NORAM system and returned
+        # as dissolved Na2SO4-enriched solids to the WBL tanks before evaporators.
+        # Ash composition (~34% Na, ~19% S) is richer than BL because ESP ash is
+        # predominantly Na2SO4 fume condensate. A fraction (typically 9%) is purged
+        # to sewer and captured in the loss table (rb_ash losses).
+        #
+        # Config params: esp_ash_na_pct_ds, esp_ash_s_pct_ds, noram_recovery_pct
+        # When not configured (Pine Hill): all default to 0 → no NORAM stream.
+        esp_ash_na_pct = inputs.get('esp_ash_na_pct_ds', 0.0)
+        esp_ash_s_pct = inputs.get('esp_ash_s_pct_ds', 0.0)
+        noram_recovery = inputs.get('noram_recovery_pct', 0.0) / 100.0
+        noram_solids_pct = inputs.get('noram_solids_pct', 22.8) / 100.0  # S276: 22.8% solids
+
+        if esp_ash_na_pct > 0 and noram_recovery > 0:
+            # RB still calculates ash_solids (ash_recycled_pct > 0) for smelt
+            # subtraction. Use that directly for NORAM return calculation.
+            ash_solids = rb_inputs.ash_solids_lbs_hr
+            noram_solids = ash_solids * noram_recovery
+            noram_na = noram_solids * (esp_ash_na_pct / 100.0)
+            noram_s = noram_solids * (esp_ash_s_pct / 100.0)
+            noram_water = noram_solids * (1 - noram_solids_pct) / noram_solids_pct if noram_solids_pct > 0 else 0.0
+        else:
+            noram_na = 0.0
+            noram_s = 0.0
+            noram_solids = 0.0
+            noram_water = 0.0
+
         mixed_wbl = mix_wbl_streams(
             bl_outputs=list(bl_outputs.values()),
             cto_na_lb_hr=cto_na_lb_hr + ww_na_lb_hr,  # WW Na enters BL via washer filtrate
             cto_s_lb_hr=cto_s_lb_hr + ww_s_lb_hr,     # WW S enters BL via washer filtrate
             cto_water_lb_hr=cto_water_lb_hr,
             dead_load_s_lb_hr=dead_load_s_lb_hr,
+            noram_na_lb_hr=noram_na,
+            noram_s_lb_hr=noram_s,
+            noram_solids_lb_hr=noram_solids,
+            noram_water_lb_hr=noram_water,
         )
 
         sbl_output = calculate_evaporator(mixed_wbl, target_tds_pct=target_sbl_tds)

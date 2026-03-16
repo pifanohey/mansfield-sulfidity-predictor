@@ -199,12 +199,21 @@ def mix_wbl_streams(
     cto_s_lb_hr: float = 0.0,
     cto_water_lb_hr: float = 0.0,
     dead_load_s_lb_hr: float = 0.0,
+    noram_na_lb_hr: float = 0.0,
+    noram_s_lb_hr: float = 0.0,
+    noram_solids_lb_hr: float = 0.0,
+    noram_water_lb_hr: float = 0.0,
 ) -> MixedWBLOutput:
     """
     Combine WBL streams from one or more fiberlines and add CTO brine.
 
     CTO is modeled as Na2SO4 brine — its Na and S add to the mixed stream.
     CTO solids = Na2SO4 compound mass from Na + S.
+
+    NORAM recovered ESP ash returns dissolved Na2SO4-enriched solids to WBL
+    before evaporators. The ash composition (34% Na, 19% S) is richer than
+    BL because ESP ash is predominantly Na2SO4 fume condensate. The NORAM
+    stream carries actual dry solids (not converted from S like CTO).
 
     Dead load Na2SO4 (unreduced S from RB) cycles through DT → GL → WLC → WL →
     digester → BL but is not part of TTA (not tracked by liquor chemistry).
@@ -223,6 +232,10 @@ def mix_wbl_streams(
         cto_water_lb_hr: CTO brine water (lb/hr)
         dead_load_s_lb_hr: Steady-state dead load Na2SO4 S (lb S/hr).
             Computed analytically by orchestrator to account for cycle losses.
+        noram_na_lb_hr: NORAM recovered ash Na element (lb/hr)
+        noram_s_lb_hr: NORAM recovered ash S element (lb/hr)
+        noram_solids_lb_hr: NORAM recovered ash dry solids (lb/hr)
+        noram_water_lb_hr: NORAM stream water (lb/hr)
     """
     # CTO enters as Na2SO4: compute compound mass from elements
     # Na2SO4 has 2 Na + 1 S + 4 O
@@ -239,10 +252,10 @@ def mix_wbl_streams(
     dl_na2so4_lb_hr = dead_load_s_lb_hr * (MW['Na2SO4'] / MW['S'])
     dl_na_lb_hr = dead_load_s_lb_hr * (2 * MW['Na'] / MW['S'])
 
-    total_na = sum(bl.na_element_lb_hr for bl in bl_outputs) + cto_na_lb_hr + dl_na_lb_hr
-    total_s = sum(bl.s_element_lb_hr for bl in bl_outputs) + cto_s_lb_hr + dead_load_s_lb_hr
-    total_solids = sum(bl.total_solids_lb_hr for bl in bl_outputs) + cto_na2so4_lb_hr + dl_na2so4_lb_hr
-    total_water = sum(bl.water_lb_hr for bl in bl_outputs) + cto_water_lb_hr
+    total_na = sum(bl.na_element_lb_hr for bl in bl_outputs) + cto_na_lb_hr + dl_na_lb_hr + noram_na_lb_hr
+    total_s = sum(bl.s_element_lb_hr for bl in bl_outputs) + cto_s_lb_hr + dead_load_s_lb_hr + noram_s_lb_hr
+    total_solids = sum(bl.total_solids_lb_hr for bl in bl_outputs) + cto_na2so4_lb_hr + dl_na2so4_lb_hr + noram_solids_lb_hr
+    total_water = sum(bl.water_lb_hr for bl in bl_outputs) + cto_water_lb_hr + noram_water_lb_hr
 
     total_flow = total_solids + total_water
 

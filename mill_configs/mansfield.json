@@ -157,6 +157,10 @@
     "cto_tpd": 117.5,
     "cto_naoh_per_ton": 193.0,
 
+    "esp_ash_na_pct_ds": 34.14,
+    "esp_ash_s_pct_ds": 19.07,
+    "noram_recovery_pct": 91.0,
+
     "wash_water_na_pct": 0.0470,
     "wash_water_s_pct": 0.01118,
 

@@ -99,6 +99,9 @@ def calculate_full_rb(
     total_production_bdt_day: float, # B2 = 1888
     saltcake_flow_lb_hr: float = 0.0, # B40 = 2227 lb Na2SO4/hr
     bl_density_offset: float = -0.1,  # B10 offset — mill-specific calibration
+    noram_external: bool = False,   # When True, NORAM handles ash return externally
+    esp_ash_na_pct_ds: float = 0.0, # Actual ESP ash Na% d.s. (0 = use Na2SO4 stoich)
+    esp_ash_s_pct_ds: float = 0.0,  # Actual ESP ash S% d.s. (0 = use Na2SO4 stoich)
 ) -> Tuple[RecoveryBoilerInputs, SmeltComposition]:
     """
     Calculate complete RB outputs using the full Excel calculation chain.
@@ -130,41 +133,60 @@ def calculate_full_rb(
     as_fired_lbs_hr = virgin_plus_ash_lbs_hr + saltcake_flow_lb_hr  # B7 × 1000
 
     # ── Step 5: Virgin solids (B5) ──
-    # B5 = B6 × (1 - ash_recycled) — ash fraction applied to V+A
-    virgin_solids_lbs_hr = virgin_plus_ash_lbs_hr * (1 - ash_recycled_pct)
+    # When noram_external=True, NORAM handles ash return to WBL externally.
+    # The SBL already contains NORAM ash, so virgin = full V+A (no reduction).
+    # Ash is still calculated for ESP capture subtraction from smelt.
+    if noram_external:
+        virgin_solids_lbs_hr = virgin_plus_ash_lbs_hr
+    else:
+        # B5 = B6 × (1 - ash_recycled) — ash fraction applied to V+A
+        virgin_solids_lbs_hr = virgin_plus_ash_lbs_hr * (1 - ash_recycled_pct)
 
     # ══════════════════════════════════════════════════════════════════════
-    # ASH LOOP EXPLANATION
-    # The ESP (electrostatic precipitator) ash is recycled Na₂SO₄. It enters
-    # via BL (mixed with virgin BL) but must be subtracted from smelt output:
+    # ASH HANDLING
     #
-    #   1. Ash Na/S increase BL composition (lines 148-156 below: bl_na_pct_mixed)
-    #   2. Ash Na/S are NOT converted to active alkali — they recirculate as
-    #      unreduced Na₂SO₄, passing through the RB without chemical change
-    #   3. Net effect: ash adds no NEW Na/S to the system (recirculation only)
-    #   4. The fraction lost in ESP = true system loss (captured in loss table
-    #      as loss_rb_ash_s and loss_rb_ash_na)
+    # Default mode (noram_external=False):
+    #   The ESP ash is recycled Na₂SO₄ that enters via BL (mixed with virgin BL)
+    #   but must be subtracted from smelt output. Virgin is reduced by (1-ash_pct)
+    #   and ash is mixed back at Na₂SO₄ composition. Net composition effect is small.
     #
-    # Therefore, ash Na and ash S are:
-    #   - Added to BL composition (step 7: bl_na_pct_mixed, bl_s_pct_mixed)
-    #   - Subtracted from smelt active_sulfide and TTA (steps 11-12)
+    # NORAM mode (noram_external=True):
+    #   ESP ash is recovered by NORAM and returned to WBL before evaporators with
+    #   enriched Na₂SO₄ composition (~34% Na, ~19% S). The SBL already contains
+    #   the NORAM ash, so we do NOT reduce virgin or mix ash into BL composition.
+    #   But we still calculate ash Na/S for subtraction from smelt (ESP capture).
     # ══════════════════════════════════════════════════════════════════════
 
     # ── Step 6: Ash solids and composition (B47-B51) ──
     # B47: Ash solids = As-fired × ash_recycled (fraction of total fired solids)
     ash_solids_lbs_hr = as_fired_lbs_hr * ash_recycled_pct
 
-    # Ash is Na2SO4 — compute Na and S contributions (element basis)
-    ash_na_lbs_hr = ash_solids_lbs_hr * Na_frac_Na2SO4     # B48 — Na element
-    ash_s_lbs_hr = ash_solids_lbs_hr * S_frac_Na2SO4       # B50 — S element
+    # Ash Na and S composition. When actual ESP ash analysis is available
+    # (esp_ash_na_pct_ds, esp_ash_s_pct_ds), use measured values. Otherwise
+    # fall back to pure Na2SO4 stoichiometry (~32.4% Na, ~22.6% S).
+    # Real ash is a mix of Na2SO4 + Na2CO3 + minor salts, so measured
+    # values (typically ~34% Na, ~19% S) differ from pure Na2SO4.
+    if esp_ash_na_pct_ds > 0:
+        ash_na_lbs_hr = ash_solids_lbs_hr * (esp_ash_na_pct_ds / 100)
+    else:
+        ash_na_lbs_hr = ash_solids_lbs_hr * Na_frac_Na2SO4     # B48 — Na element
+    if esp_ash_s_pct_ds > 0:
+        ash_s_lbs_hr = ash_solids_lbs_hr * (esp_ash_s_pct_ds / 100)
+    else:
+        ash_s_lbs_hr = ash_solids_lbs_hr * S_frac_Na2SO4       # B50 — S element
     # Convert to Na2O basis for TTA/sulfide calculations
     ash_na_na2o = ash_na_lbs_hr * CONV['Na_to_Na2O']       # B49 — Na as Na2O
     ash_s_na2o = ash_s_lbs_hr * CONV['S_to_Na2O']          # B51 — S as Na2O equiv
 
     # ── Step 7: Na% and S% d.s. Virgin+Ash (B21, B26) ──
-    # B21 = (inv_Na% × Virgin + Ash_Na) / (Virgin+Ash)
-    # B26 = (inv_S% × Virgin + Ash_S) / (Virgin+Ash)
-    if virgin_plus_ash_lbs_hr > 0:
+    if noram_external:
+        # NORAM mode: SBL composition already includes ash from WBL mixer.
+        # Use inventory composition directly — no ash mixing.
+        bl_na_pct_mixed = bl_na_pct_inv
+        bl_s_pct_mixed = bl_s_pct_inv
+    elif virgin_plus_ash_lbs_hr > 0:
+        # Default mode: mix virgin BL with recycled ash at Na2SO4 composition.
+        # B21 = (inv_Na% × Virgin + Ash_Na) / (Virgin+Ash)
         na_from_virgin = (bl_na_pct_inv / 100) * virgin_solids_lbs_hr
         bl_na_pct_mixed = (na_from_virgin + ash_na_lbs_hr) / virgin_plus_ash_lbs_hr * 100
 

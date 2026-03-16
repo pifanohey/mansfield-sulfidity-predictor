@@ -220,24 +220,41 @@ def calculate_slaker_model(
     inerts = total_lime * (inerts_in_lime_pct / 100)
     slaker_grits = total_lime * (grits_loss_pct / 100)
 
+    # ── Lime Mud Solids (computed early for liquid volume calculation) ──
+    # CaCO3 from causticizing: Na2CO3 + Ca(OH)2 → 2NaOH + CaCO3
+    na2co3_conv_mass_early = (gl_volume_L_hr * na2co3_conv_na2o / 1e6
+                              * CONV['METRIC_TO_SHORT'])
+    caco3_from_reaction = na2co3_conv_mass_early * (MW_CaCO3 / MW_Na2O)
+    caco3_from_lime = total_lime * (caco3_in_lime_pct / 100)
+    total_caco3 = caco3_from_reaction + caco3_from_lime
+
+    MW_CaOH2 = 74.09
+    excess_caoh2 = cao_excess * (MW_CaOH2 / MW_CaO)
+
+    # Total lime mud = CaCO3 + excess Ca(OH)2 + inerts (suspended solids)
+    lime_mud_total = total_caco3 + excess_caoh2 + inerts
+
     # ── WL Flow Calculation (B74-B81) ──
-    # B74: WL mass flow = GL mass + lime - steam - grits_loss
-    # Excess Ca(OH)2 and inerts stay in the WL slurry (settle in WLC downstream)
+    # B74: Total slurry mass = GL mass + lime - steam - grits_loss
     wl_mass = gl_mass_ton_hr + total_lime - steam_ton_hr - slaker_grits
 
-    # B77: WL volume flow (L/hr) = WL_mass × B37 / WL_density
-    wl_volume_L_hr = wl_mass * KG_PER_TON / WL_DENSITY
+    # B77: WL LIQUID volume — subtract lime mud solids from slurry mass.
+    # The slurry contains dissolved WL (liquid) + suspended lime mud (solid).
+    # TTA species are dissolved in the liquid phase only, so concentrations
+    # must be based on liquid volume, not total slurry volume.
+    wl_liquid_mass = wl_mass - lime_mud_total
+    wl_volume_L_hr = wl_liquid_mass * KG_PER_TON / WL_DENSITY
 
-    # B81: Concentration factor = WL_volume / GL_volume
+    # B81: Yield factor = WL liquid volume / GL volume
     if gl_volume_L_hr > 0:
         yield_factor = wl_volume_L_hr / gl_volume_L_hr
     else:
         yield_factor = 1.0
 
     # Clamp to reasonable range
-    yield_factor = max(0.95, min(1.10, yield_factor))
+    yield_factor = max(0.85, min(1.05, yield_factor))
 
-    # B87: WL Flow (gpm)
+    # B87: WL Flow (gpm) — liquid phase only
     wl_flow_gpm = wl_volume_L_hr / (60 * 3.785)
 
     # ══════════════════════════════════════════════════════════════════════
@@ -297,23 +314,7 @@ def calculate_slaker_model(
     wl_sulfidity = wl_na2s_mass / wl_tta_mass if wl_tta_mass > 0 else 0.0
 
     # ── Lime Mud Output (B102-B105) ──
-    # Na2CO3 converted (mass): (GL_vol × B82 / 1e6) × 1.1023
-    na2co3_conv_mass = (gl_volume_L_hr * na2co3_conv_na2o / 1e6
-                        * CONV['METRIC_TO_SHORT'])
-    # CaCO3 from causticizing = Na2CO3_mass × CaCO3/Na2O
-    caco3_from_reaction = na2co3_conv_mass * (MW_CaCO3 / MW_Na2O)
-    # CaCO3 from lime residual
-    caco3_from_lime = total_lime * (caco3_in_lime_pct / 100)
-    # Total CaCO3 (lime mud)
-    total_caco3 = caco3_from_reaction + caco3_from_lime
-
-    # Excess Ca(OH)2 from unreacted CaO: CaO + H2O → Ca(OH)2
-    MW_CaOH2 = 74.09
-    excess_caoh2 = cao_excess * (MW_CaOH2 / MW_CaO)
-
-    # Total lime mud = CaCO3 + excess Ca(OH)2 + inerts (all settle in WLC)
-    lime_mud_total = total_caco3 + excess_caoh2 + inerts
-
+    # (lime mud solids already calculated above for liquid volume correction)
     lime_mud_caco3_lb_hr = total_caco3 * 2000
     lime_mud_total_lb_hr = lime_mud_total * 2000
     grits_lb_hr = slaker_grits * 2000
