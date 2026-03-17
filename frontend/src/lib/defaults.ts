@@ -1,19 +1,8 @@
 import type { CalculationRequest, TankLevels, LiquorAnalysis, RecoveryBoilerInputs, LossTable } from "./types";
 
-export const DEFAULT_TANK_LEVELS: TankLevels = {
-  wlc_1: 10.2,
-  wlc_2: 13.0,
-  gl_1: 11.1,
-  gl_2: 10.8,
-  dump_tank: 30.3,
-  wbl_1: 34.4,
-  wbl_2: 32.8,
-  cssc_weak: 36.4,
-  tank_50pct: 18.4,
-  tank_55pct_1: 18.0,
-  tank_55pct_2: 1.0,
-  tank_65pct: 39.4,
-};
+// Tank levels are config-driven (loaded from mill config tanks array).
+// Empty default — applyMillDefaults() populates from config.tanks.
+export const DEFAULT_TANK_LEVELS: TankLevels = {};
 
 // WL/GL analysis defaults in lb/ft³ (DCS units)
 // Converted to g/L before sending to backend: g/L = lb/ft³ × 16.01846

@@ -1,17 +1,5 @@
-export interface TankLevels {
-  wlc_1: number;
-  wlc_2: number;
-  gl_1: number;
-  gl_2: number;
-  dump_tank: number;
-  wbl_1: number;
-  wbl_2: number;
-  cssc_weak: number;
-  tank_50pct: number;
-  tank_55pct_1: number;
-  tank_55pct_2: number;
-  tank_65pct: number;
-}
+// Tank levels keyed by tank ID from mill config (dynamic per mill)
+export type TankLevels = Record<string, number>;
 
 export interface LiquorAnalysis {
   tta: number;

@@ -264,6 +264,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         updates.loss_table = lt;
       }
 
+      // Tank levels: initialize from mill config tanks (use 0 as default level)
+      if (config.tanks && config.tanks.length > 0) {
+        const tankLevels: Record<string, number> = {};
+        for (const tank of config.tanks) {
+          const t = tank as { id: string; max_level: number };
+          tankLevels[t.id] = prev.tank_levels?.[t.id] ?? 0;
+        }
+        updates.tank_levels = tankLevels;
+      }
+
       return { ...prev, ...updates };
     });
   }, []);

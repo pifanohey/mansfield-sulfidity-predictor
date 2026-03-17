@@ -175,8 +175,9 @@ export default function InputsPage() {
                 Inventory metrics only — does not affect main calculations.
               </div>
               <TankLevelSection
-                levels={inputs.tank_levels ?? DEFAULT_TANK_LEVELS}
+                levels={inputs.tank_levels ?? {}}
                 onChange={(k, v) => updateNestedField("tank_levels", k, v)}
+                tanks={millConfig?.tanks as Array<{ id: string; name: string; max_level: number; gal_per_ft: number; group: string }>}
               />
             </AccordionContent>
           </AccordionItem>
