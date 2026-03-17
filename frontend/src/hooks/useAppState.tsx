@@ -264,12 +264,29 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         updates.loss_table = lt;
       }
 
-      // Tank levels: initialize from mill config tanks (use 0 as default level)
+      // Tank levels: initialize from mill config tanks with group-based defaults.
+      // Default levels derived from Pine Hill operating levels by liquor group.
       if (config.tanks && config.tanks.length > 0) {
+        const groupDefaults: Record<string, number> = {
+          white_liquor: 11.6,
+          green_liquor: 11.0,
+          weak_black_liquor: 20.0,
+          strong_black_liquor: 20.0,
+        };
         const tankLevels: Record<string, number> = {};
         for (const tank of config.tanks) {
-          const t = tank as { id: string; max_level: number };
-          tankLevels[t.id] = prev.tank_levels?.[t.id] ?? 0;
+          const t = tank as { id: string; name: string; max_level: number; group: string };
+          // Use existing level if set, otherwise group default, fallback 60% of max
+          const groupDefault = groupDefaults[t.group] ?? t.max_level * 0.6;
+          // Dump tanks default lower (57% of max)
+          const defaultLevel = t.name.toLowerCase().includes("dump")
+            ? t.max_level * 0.57
+            : Math.min(groupDefault, t.max_level);
+          // Concentrated liquor tank: 65% of max
+          const level = t.name.toLowerCase().includes("concentrated")
+            ? t.max_level * 0.65
+            : defaultLevel;
+          tankLevels[t.id] = prev.tank_levels?.[t.id] ?? Math.round(level * 10) / 10;
         }
         updates.tank_levels = tankLevels;
       }
