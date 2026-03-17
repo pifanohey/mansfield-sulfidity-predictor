@@ -251,6 +251,13 @@ def _build_response(results: Dict[str, Any], inputs: Dict[str, Any]) -> Calculat
 @router.post("/calculate", response_model=CalculationResponse)
 def calculate(request: CalculationRequest):
     engine_inputs = request.to_engine_inputs()
+    # Inject mill config tanks for dynamic tank inventory calculation
+    from ...engine.mill_profile import get_mill_config
+    try:
+        mc = get_mill_config()
+        engine_inputs['mill_config_tanks'] = mc.tanks
+    except Exception:
+        pass  # Fall back to hardcoded TANK_GROUPS
     try:
         results = run_calculations(engine_inputs)
     except Exception as e:

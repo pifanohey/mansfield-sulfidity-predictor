@@ -1816,14 +1816,53 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
 
     tank_levels = inputs.get('tank_levels', DEFAULTS['tank_levels'])
 
+    # Build tank groups from mill config (dynamic) or fall back to hardcoded TANK_GROUPS
+    mill_tanks = inputs.get('mill_config_tanks', [])
+    if mill_tanks:
+        # Dynamic: group tanks by their 'group' field from mill config JSON
+        dynamic_tanks = {}
+        dynamic_tank_geometry = {}
+        for t in mill_tanks:
+            grp = t.get('group', 'unknown')
+            dynamic_tanks.setdefault(grp, []).append(t['id'])
+            dynamic_tank_geometry[t['id']] = {
+                'name': t.get('name', t['id']),
+                'constant': t.get('constant', 0),
+                'max_level': t.get('max_level', 1),
+                'gal_per_ft': t.get('gal_per_ft', 0),
+                'group': grp,
+            }
+        tank_groups = dynamic_tanks
+        tank_geo = dynamic_tank_geometry
+    else:
+        # Fallback: use hardcoded Pine Hill tanks
+        tank_groups = TANK_GROUPS
+        tank_geo = TANKS
+
+    # Override tank_volume_gallons to use dynamic geometry
+    def _tank_vol(tank_id, level_ft):
+        if tank_id in tank_geo:
+            geo = tank_geo[tank_id]
+            gal_per_ft = geo.get('gal_per_ft', 0)
+            max_lvl = geo.get('max_level', 1)
+            return min(level_ft, max_lvl) * gal_per_ft
+        # Fall back to hardcoded mill_config
+        return tank_volume_gallons(tank_id, level_ft)
+
     wl_tanks = []
-    for tn in TANK_GROUPS['white_liquor']:
+    for tn in tank_groups.get('white_liquor', []):
         if tn in tank_levels:
-            wl_tanks.append(calculate_tank_inventory(tn, tank_levels[tn], wl_comp))
+            vol = _tank_vol(tn, tank_levels[tn])
+            wl_tanks.append(TankInventory(
+                tank_name=tn, level_ft=tank_levels[tn],
+                volume_gal=vol, liquor=wl_comp))
     gl_tanks = []
-    for tn in TANK_GROUPS['green_liquor']:
+    for tn in tank_groups.get('green_liquor', []):
         if tn in tank_levels:
-            gl_tanks.append(calculate_tank_inventory(tn, tank_levels[tn], gl_comp))
+            vol = _tank_vol(tn, tank_levels[tn])
+            gl_tanks.append(TankInventory(
+                tank_name=tn, level_ft=tank_levels[tn],
+                volume_gal=vol, liquor=gl_comp))
 
     bl_tank_tds = inputs.get('bl_tank_tds', DEFAULTS['bl_tank_tds'])
     bl_tank_temp = inputs.get('bl_tank_temp', DEFAULTS['bl_tank_temp'])
@@ -1844,17 +1883,24 @@ def run_calculations(inputs: Dict[str, Any]) -> Dict[str, Any]:
         # Weak BL: all losses ahead (evap + RB) → s_ret_weak
         # Strong BL: already concentrated, only RB losses ahead → s_ret_strong
         ret = s_ret_weak if group == 'weak_black_liquor' else s_ret_strong
-        for tn in TANK_GROUPS[group]:
+        for tn in tank_groups.get(group, []):
             if tn in tank_levels:
-                na_pct_inv = bl_na_pct_inv_strong if tn == 'tank_65pct' else bl_na_pct_inv_weak
+                # Strong BL tanks with "concentrated" in name use strong Na%
+                tank_name_lower = tank_geo.get(tn, {}).get('name', tn).lower()
+                is_strong_na = 'concentrated' in tank_name_lower or '65%' in tank_name_lower
+                na_pct_inv = bl_na_pct_inv_strong if is_strong_na else bl_na_pct_inv_weak
                 # Add CTO S increment to lab S% for inventory
                 adjusted_s_pct = bl_s_pct_inv + cto_s_increment_pct
-                bl_tanks.append(calculate_bl_inventory(
-                    tn, tank_levels[tn],
+                vol = _tank_vol(tn, tank_levels[tn])
+                density_lb_gal = calculate_bl_density(
+                    bl_tank_tds.get(tn, 19.23), bl_tank_temp.get(tn, 205.0))
+                bl_tanks.append(LatentBLInventory(
+                    tank_name=tn, level_ft=tank_levels[tn], volume_gal=vol,
                     tds_pct=bl_tank_tds.get(tn, 19.23),
                     temp_f=bl_tank_temp.get(tn, 205.0),
+                    density_lb_gal=density_lb_gal,
                     na_pct=na_pct_inv, s_pct=adjusted_s_pct, k_pct=bl_k_pct,
-                    reduction_eff_pct=re_pct, s_retention=ret,
+                    reduction_eff=re_pct / 100, s_retention=ret,
                 ))
 
     results['total_wl_tta_tons'] = sum(t.tta_tons for t in wl_tanks)
